@@ -65,12 +65,18 @@ oppT1match_scores = get_match_scores(oppT1num)
 oppT2match_scores = get_match_scores(oppT2num)
 oppT3match_scores = get_match_scores(oppT3num)
 
+teams_gotten = []
+
 def get_test_matches(team):
-    if(team == 0):
+    if(team == 0 or team in teams_gotten):
         return []
+    teams_gotten.append(team)
     print(f"Getting some test matches for team {team}...")
-    team_last_event = sb.get_team_events(team, year)[-1]
-    return sb.get_matches(None, None, team_last_event["event"])
+    team_last_event = sb.get_team_events(team, year)[-2]
+    if(team_last_event == None):
+        team_last_event = sb.get_team_events(team, year)[-1]
+    
+    return sb.get_matches(None, None, team_last_event["event"])[:60]
 
 def abs_avg(dict):
     ret = 0
