@@ -5,11 +5,11 @@ sb = statbotics.Statbotics()
 
 LEARNING_RATE0 = 0.000000000875
 LEARNING_RATE1 = 0.00000000000075
-LEARNING_RATE2 = 0.0000000000000000375
+LEARNING_RATE2 = 0.00000000000000002
 H = 0.000000000000001
 
 INDIVIDUAL_DONE_THRESH = 3
-DONE_THRESH = 0.000000005
+DONE_THRESH = 0.0001
 
 year = int(input("enter year:\n"))
 
@@ -76,7 +76,7 @@ def get_test_matches(team):
     if(team_last_event == None):
         team_last_event = sb.get_team_events(team, year)[-1]
     
-    return sb.get_matches(None, None, team_last_event["event"])[:60]
+    return sb.get_matches(None, None, team_last_event["event"])
 
 def abs_avg(dict):
     ret = 0
@@ -230,9 +230,16 @@ def percent_done():
 
 last_cost = 0
 counter = 0
-while True:
+done_next = False
+
+while not done_next:
     counter += 1
+
+    if(last_cost - cost() < DONE_THRESH and cost() < 30):
+        done_next = True
+    
     last_cost = cost()
+
     for i in range(len(da)):
         if(abs(da[i]) < INDIVIDUAL_DONE_THRESH):
             is_done[i] = True
@@ -264,14 +271,12 @@ while True:
     if(not is_done[36]):
         d -= (dd ** 2) * math.copysign(1, dd) * LEARNING_RATE2 + dd * LEARNING_RATE1 + math.copysign(1, dd) * LEARNING_RATE0
 
-    if(last_cost - cost() < DONE_THRESH and cost() < 30):
-        break
-
-    if(counter % 5 == 0):
+    if(counter % 10 == 0):
         print(f"Training model, model has {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
 
 print("Model done training!")
-print(f"Model finished with {cost()} variance.")
+print(f"Model finished with {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
+print(last_cost - cost())
 
 print(f"This team predicted score: {cubic_thing([abs_avg(t1match_scores),
                                                  t1match_scores[-1],
