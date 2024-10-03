@@ -3,23 +3,23 @@ import statbotics
 
 sb = statbotics.Statbotics()
 
-LEARNING_RATE0 = 0.000000000875
-LEARNING_RATE1 = 0.00000000000075
-LEARNING_RATE2 = 0.00000000000000002
-H = 0.000000000000001
+LEARNING_RATE0 = 0.0
+LEARNING_RATE1 = 0.0000000000001
+LEARNING_RATE2 = 0.0
+H = 0.00000000000000001
 
-INDIVIDUAL_DONE_THRESH = 3
-DONE_THRESH = 0.0001
+INDIVIDUAL_DONE_THRESH = 0.8
+DONE_THRESH = 0.00005
 
-year = int(input("enter year:\n"))
+year = int(input("Enter year:\n"))
 
-t1num = int(input("enter team 1:\n"))
-t2num = int(input("enter team 2:\n"))
-t3num = int(input("enter team 3:\n"))
+t1num = int(input("Enter red alliance team 1:\n"))
+t2num = int(input("Enter red alliance team 2:\n"))
+t3num = int(input("Enter red alliance team 3:\n"))
 
-oppT1num = int(input("enter opposing team 1:\n"))
-oppT2num = int(input("enter opposing team 2:\n"))
-oppT3num = int(input("enter opposing team 3:\n"))
+oppT1num = int(input("Enter blue alliance team 1:\n"))
+oppT2num = int(input("Enter blue alliance team 2:\n"))
+oppT3num = int(input("Enter blue alliance team 3:\n"))
 
 def get_match_scores(team_num):
     if(team_num == 0):
@@ -47,7 +47,7 @@ def get_opp_match_scores(team_num):
                 opp_team_match_scores.append(team_match["blue_score"])
         return opp_team_match_scores
 
-print("Getting team data...")
+print("Getting red alliance data...")
 t1match_scores = get_match_scores(t1num)
 t2match_scores = get_match_scores(t2num)
 t3match_scores = get_match_scores(t3num)
@@ -56,7 +56,7 @@ t1opp_match_scores = get_opp_match_scores(t1num)
 t2opp_match_scores = get_opp_match_scores(t2num)
 t3opp_match_scores = get_opp_match_scores(t3num)
 
-print("Getting opposing team's data...")
+print("Getting blue alliance data...")
 oppT1opp_match_scores = get_opp_match_scores(oppT1num)
 oppT2opp_match_scores = get_opp_match_scores(oppT2num)
 oppT3opp_match_scores = get_opp_match_scores(oppT3num)
@@ -72,11 +72,14 @@ def get_test_matches(team):
         return []
     teams_gotten.append(team)
     print(f"Getting some test matches for team {team}...")
-    team_last_event = sb.get_team_events(team, year)[-2]
-    if(team_last_event == None):
-        team_last_event = sb.get_team_events(team, year)[-1]
+    team_events = sb.get_team_events(team, year)
+
+    matches = sb.get_matches(None, None, team_events[-1]["event"])
+
+    if not (len(team_events) == 1):
+        matches += sb.get_matches(None, None, team_events[-2]["event"])
     
-    return sb.get_matches(None, None, team_last_event["event"])
+    return matches[len(matches) - 101:]
 
 def abs_avg(dict):
     ret = 0
@@ -169,7 +172,7 @@ print("Starting training...")
 a = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 b = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 c = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-d = 0
+d = 1
 
 def cubic_thing(x, which = ""):
     ret = 0
@@ -228,37 +231,48 @@ def percent_done():
     # ret *= 100
     return ret
 
-last_cost = 0
+last_cost = 10000
 counter = 0
 done_next = False
 
 while not done_next:
     counter += 1
 
-    if(last_cost - cost() < DONE_THRESH and cost() < 30):
+    if percent_done() >= 37 or (last_cost - cost()) < DONE_THRESH or counter >= 1000:
         done_next = True
-    
+    else:
+        done_next = False
+
     last_cost = cost()
 
     for i in range(len(da)):
         if(abs(da[i]) < INDIVIDUAL_DONE_THRESH):
+            if(not is_done[i]):
+                da[i] = (cost(f"a{i}") - cost()) / H
             is_done[i] = True
-        else: 
+        if(not is_done[i]):
             da[i] = (cost(f"a{i}") - cost()) / H
         
+        
         if(abs(db[i]) < INDIVIDUAL_DONE_THRESH):
+            if(not is_done[i + 12]):
+                db[i] = (cost(f"b{i}") - cost()) / H
             is_done[i + 12] = True
-        else:
+        if(not is_done[i + 12]):
             db[i] = (cost(f"b{i}") - cost()) / H
 
         if(abs(dc[i]) < INDIVIDUAL_DONE_THRESH):
+            if(not is_done[i + 24]):
+                dc[i] = (cost(f"c{i}") - cost()) / H
             is_done[i + 24] = True
-        else:         
+        if(not is_done[i + 24]):
             dc[i] = (cost(f"c{i}") - cost()) / H
                   
     if(abs(dd) < INDIVIDUAL_DONE_THRESH):
+        if(not is_done[36]):
+            dd = (cost("dd") - cost()) / H
         is_done[36] = True
-    else:
+    if(not is_done[36]):
         dd = (cost("dd") - cost()) / H
 
     for i in range(len(a)):
@@ -271,36 +285,84 @@ while not done_next:
     if(not is_done[36]):
         d -= (dd ** 2) * math.copysign(1, dd) * LEARNING_RATE2 + dd * LEARNING_RATE1 + math.copysign(1, dd) * LEARNING_RATE0
 
+    if (done_next and (percent_done() >= 37 or last_cost - cost() < DONE_THRESH) and counter >= 100) or counter >= 1000:
+        done_next = True
+    else:
+        done_next = False
+
+    for i in range(len(da)):
+        if not (abs(da[i]) < INDIVIDUAL_DONE_THRESH):
+            is_done[i] = False
+        
+        if not (abs(db[i]) < INDIVIDUAL_DONE_THRESH):
+            is_done[i + 12] = False
+
+        if not (abs(dc[i]) < INDIVIDUAL_DONE_THRESH):
+            is_done[i + 24] = False
+                  
+    if not (abs(dd) < INDIVIDUAL_DONE_THRESH): 
+        is_done[36] = False
+    
+    #print(f"{round((last_cost - cost()) * 1000)/1000} accuracy gained")
+
     if(counter % 10 == 0):
-        print(f"Training model, model has {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
+        # {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, 
+        print(f"Training model, model has {round(cost() * 1000)/1000} variance, {percent_done()} values done calculating after {counter} iterations")
+    if(counter % 50 == 0):
+        print(f"After {counter} iterations, prediction:")
+        print(f"Red alliance ({t1num}, {t2num}, {t3num}) predicted score: {round(cubic_thing([abs_avg(t1match_scores),
+            t1match_scores[-1],
+            abs_avg(t2match_scores),
+            t2match_scores[-1],
+            abs_avg(t3match_scores),
+            t3match_scores[-1],
+            abs_avg(oppT1opp_match_scores),
+            oppT1opp_match_scores[-1],
+            abs_avg(oppT2opp_match_scores),
+            oppT2opp_match_scores[-1],
+            abs_avg(oppT3opp_match_scores),
+            oppT3opp_match_scores[-1]
+            ]) * 1000)/1000}")
+        print(f"Blue alliance ({oppT1num}, {oppT2num}, {oppT3num}) predicted score: {round(cubic_thing([abs_avg(oppT1match_scores),
+            oppT1match_scores[-1],
+            abs_avg(oppT2match_scores),
+            oppT2match_scores[-1],
+            abs_avg(oppT3match_scores),
+            oppT3match_scores[-1],
+            abs_avg(t1opp_match_scores),
+            t1opp_match_scores[-1],
+            abs_avg(t2opp_match_scores),
+            t2opp_match_scores[-1],
+            abs_avg(t3opp_match_scores),
+            t3opp_match_scores[-1]
+            ]) * 1000)/1000}")
 
 print("Model done training!")
-print(f"Model finished with {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
-print(last_cost - cost())
+print(f"Model finished with {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
 
-print(f"This team predicted score: {cubic_thing([abs_avg(t1match_scores),
-                                                 t1match_scores[-1],
-                                                 abs_avg(t2match_scores),
-                                                 t2match_scores[-1],
-                                                 abs_avg(t3match_scores),
-                                                 t3match_scores[-1],
-                                                 abs_avg(oppT1opp_match_scores),
-                                                 oppT1opp_match_scores[-1],
-                                                 abs_avg(oppT2opp_match_scores),
-                                                 oppT2opp_match_scores[-1],
-                                                 abs_avg(oppT3opp_match_scores),
-                                                 oppT3opp_match_scores[-1]
-                                                 ])}")
-print(f"Opponent team predicted score: {cubic_thing([abs_avg(oppT1match_scores),
-                                                 oppT1match_scores[-1],
-                                                 abs_avg(oppT2match_scores),
-                                                 oppT2match_scores[-1],
-                                                 abs_avg(oppT3match_scores),
-                                                 oppT3match_scores[-1],
-                                                 abs_avg(t1opp_match_scores),
-                                                 t1opp_match_scores[-1],
-                                                 abs_avg(t2opp_match_scores),
-                                                 t2opp_match_scores[-1],
-                                                 abs_avg(t3opp_match_scores),
-                                                 t3opp_match_scores[-1]
-                                                 ])}")
+print(f"Red alliance ({t1num}, {t2num}, {t3num}) predicted score: {round(cubic_thing([abs_avg(t1match_scores),
+    t1match_scores[-1],
+    abs_avg(t2match_scores),
+    t2match_scores[-1],
+    abs_avg(t3match_scores),
+    t3match_scores[-1],
+    abs_avg(oppT1opp_match_scores),
+    oppT1opp_match_scores[-1],
+    abs_avg(oppT2opp_match_scores),
+    oppT2opp_match_scores[-1],
+    abs_avg(oppT3opp_match_scores),
+    oppT3opp_match_scores[-1]
+    ]) * 1000)/1000}")
+print(f"Blue alliance ({oppT1num}, {oppT2num}, {oppT3num}) predicted score: {round(cubic_thing([abs_avg(oppT1match_scores),
+    oppT1match_scores[-1],
+    abs_avg(oppT2match_scores),
+    oppT2match_scores[-1],
+    abs_avg(oppT3match_scores),
+    oppT3match_scores[-1],
+    abs_avg(t1opp_match_scores),
+    t1opp_match_scores[-1],
+    abs_avg(t2opp_match_scores),
+    t2opp_match_scores[-1],
+    abs_avg(t3opp_match_scores),
+    t3opp_match_scores[-1]
+    ]) * 1000)/1000}")
