@@ -13,13 +13,7 @@ DONE_THRESH = 0.00005
 
 year = int(input("Enter year:\n"))
 
-t1num = int(input("Enter red alliance team 1:\n"))
-t2num = int(input("Enter red alliance team 2:\n"))
-t3num = int(input("Enter red alliance team 3:\n"))
-
-oppT1num = int(input("Enter blue alliance team 1:\n"))
-oppT2num = int(input("Enter blue alliance team 2:\n"))
-oppT3num = int(input("Enter blue alliance team 3:\n"))
+team_num = int(input("Enter team:\n"))
 
 def get_match_scores(team_num):
     if(team_num == 0):
@@ -47,25 +41,10 @@ def get_opp_match_scores(team_num):
                 opp_team_match_scores.append(team_match["blue_score"])
         return opp_team_match_scores
 
-print("Getting red alliance data...")
-t1match_scores = get_match_scores(t1num)
-t2match_scores = get_match_scores(t2num)
-t3match_scores = get_match_scores(t3num)
+print("Getting data...")
+match_scores = get_match_scores(team_num)
 
-t1opp_match_scores = get_opp_match_scores(t1num)
-t2opp_match_scores = get_opp_match_scores(t2num)
-t3opp_match_scores = get_opp_match_scores(t3num)
-
-print("Getting blue alliance data...")
-oppT1opp_match_scores = get_opp_match_scores(oppT1num)
-oppT2opp_match_scores = get_opp_match_scores(oppT2num)
-oppT3opp_match_scores = get_opp_match_scores(oppT3num)
-
-oppT1match_scores = get_match_scores(oppT1num)
-oppT2match_scores = get_match_scores(oppT2num)
-oppT3match_scores = get_match_scores(oppT3num)
-
-teams_gotten = []
+opp_match_scores = get_opp_match_scores(team_num)
 
 def get_test_matches(team):
     if(team == 0 or team in teams_gotten):
@@ -74,12 +53,12 @@ def get_test_matches(team):
     print(f"Getting some test matches for team {team}...")
     team_events = sb.get_team_events(team, year)
 
-    matches = sb.get_matches(None, None, team_events[-1]["event"])
+    matches = []
+    for i in range(0, len(team_events)):
+        matches.append(sb.get_matches(None, year, team_events[i]["event"]))
 
-    if not (len(team_events) == 1):
-        matches += sb.get_matches(None, None, team_events[-2]["event"])
     
-    return matches[len(matches) - 101:]
+    return matches
 
 def abs_avg(dict):
     ret = 0
@@ -89,13 +68,7 @@ def abs_avg(dict):
     ret /= len(dict)
     return ret
 
-training_matches = []
-training_matches += get_test_matches(t1num)
-training_matches += get_test_matches(t2num)
-training_matches += get_test_matches(t3num)
-training_matches += get_test_matches(oppT1num)
-training_matches += get_test_matches(oppT2num)
-training_matches += get_test_matches(oppT3num)
+training_matches = get_test_matches(team_num)
 
 print("Initializing training set...")
 
@@ -308,61 +281,8 @@ while not done_next:
     if(counter % 10 == 0):
         # {round(abs_avg(da + db + dc + [dd])* 1000)/1000} error, 
         print(f"Training model, model has {round(cost() * 1000)/1000} variance, {percent_done()} values done calculating after {counter} iterations")
-    if(counter % 50 == 0):
-        print(f"After {counter} iterations, prediction:")
-        print(f"Red alliance ({t1num}, {t2num}, {t3num}) predicted score: {round(cubic_thing([abs_avg(t1match_scores),
-            t1match_scores[-1],
-            abs_avg(t2match_scores),
-            t2match_scores[-1],
-            abs_avg(t3match_scores),
-            t3match_scores[-1],
-            abs_avg(oppT1opp_match_scores),
-            oppT1opp_match_scores[-1],
-            abs_avg(oppT2opp_match_scores),
-            oppT2opp_match_scores[-1],
-            abs_avg(oppT3opp_match_scores),
-            oppT3opp_match_scores[-1]
-            ]) * 1000)/1000}")
-        print(f"Blue alliance ({oppT1num}, {oppT2num}, {oppT3num}) predicted score: {round(cubic_thing([abs_avg(oppT1match_scores),
-            oppT1match_scores[-1],
-            abs_avg(oppT2match_scores),
-            oppT2match_scores[-1],
-            abs_avg(oppT3match_scores),
-            oppT3match_scores[-1],
-            abs_avg(t1opp_match_scores),
-            t1opp_match_scores[-1],
-            abs_avg(t2opp_match_scores),
-            t2opp_match_scores[-1],
-            abs_avg(t3opp_match_scores),
-            t3opp_match_scores[-1]
-            ]) * 1000)/1000}")
 
 print("Model done training!")
 print(f"Model finished with {round(cost() * 1000)/1000} variance, {percent_done()} values done calcualting after {counter} iterations")
 
-print(f"Red alliance ({t1num}, {t2num}, {t3num}) predicted score: {round(cubic_thing([abs_avg(t1match_scores),
-    t1match_scores[-1],
-    abs_avg(t2match_scores),
-    t2match_scores[-1],
-    abs_avg(t3match_scores),
-    t3match_scores[-1],
-    abs_avg(oppT1opp_match_scores),
-    oppT1opp_match_scores[-1],
-    abs_avg(oppT2opp_match_scores),
-    oppT2opp_match_scores[-1],
-    abs_avg(oppT3opp_match_scores),
-    oppT3opp_match_scores[-1]
-    ]) * 1000)/1000}")
-print(f"Blue alliance ({oppT1num}, {oppT2num}, {oppT3num}) predicted score: {round(cubic_thing([abs_avg(oppT1match_scores),
-    oppT1match_scores[-1],
-    abs_avg(oppT2match_scores),
-    oppT2match_scores[-1],
-    abs_avg(oppT3match_scores),
-    oppT3match_scores[-1],
-    abs_avg(t1opp_match_scores),
-    t1opp_match_scores[-1],
-    abs_avg(t2opp_match_scores),
-    t2opp_match_scores[-1],
-    abs_avg(t3opp_match_scores),
-    t3opp_match_scores[-1]
-    ]) * 1000)/1000}")
+print(f"Alliance contribution average (ACA) for team {team_num}: {1}")
