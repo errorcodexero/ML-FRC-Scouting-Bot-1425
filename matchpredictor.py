@@ -4,7 +4,7 @@ import statbotics
 sb = statbotics.Statbotics()
 
 LEARNING_RATE0 = 0.0
-LEARNING_RATE1 = 0.00000000001
+LEARNING_RATE = 0.000000000001
 LEARNING_RATE2 = 0.0
 H = 0.00000000000000001
 
@@ -177,29 +177,46 @@ d = 0
 def cubic_thing(x, which = ""):
     ret = 0
     for i in range(len(x)):
-        if(which == f"a{i}"):
-            ret += (a[i] + H) * x[i] ** 3
-            ret += b[i] * x[i] ** 2
-            ret += c[i] * x[i]
-        elif(which == f"b{i}"):
-            ret += a[i] * x[i] ** 3
-            ret += (b[i] + H) * x[i] ** 2
-            ret += c[i] * x[i]
-        elif(which == f"c{i}"):
-            ret += a[i] * x[i] ** 3
-            ret += b[i] * x[i] ** 2
-            ret += (c[i] + H) * x[i]
-        else:
-            ret += a[i] * x[i] ** 3
-            ret += b[i] * x[i] ** 2
-            ret += c[i] * x[i]
-    
-    if(which == "d"):
-        ret += d + H
-    else:
-        ret += d
+        ret += a[i] * x[i] ** 3
+        ret += b[i] * x[i] ** 2
+        ret += c[i] * x[i]
+    ret += d
     
     return ret
+
+def derivative(which):
+    """
+    Calculates the derivative of the cubic function with respect to the specified variable.
+
+    Parameters:
+    which (str): The variable for which the derivative is calculated. It can be 'a', 'b', 'c', or 'd'.
+
+    Returns:
+    float: The derivative of the cubic function with respect to the specified variable.
+    """
+    # Implementation of the derivative calculation goes here
+    ret = 0
+    coeff = ""
+    power = 0
+    for datum in training_set:
+        for i in range(len(datum["inputs"])):
+            if(which == f"a{i}"):
+                coeff = a[i]
+                power = 3
+            elif(which == f"b{i}"):
+                coeff = b[i]
+                power = 2
+            elif(which == f"c{i}"):
+                coeff = c[i]
+                power = 1
+            elif(which == f"d"):
+                coeff = d
+                power = 0
+            else:
+                continue
+            ret += ((coeff + H) * (datum["inputs"][i] ** power)) - (coeff * (datum["inputs"][i] ** power))
+    return ret
+
 
 def cost(which = ""):
     ret = 0
@@ -248,42 +265,42 @@ while not done_next:
     for i in range(len(da)):
         if(abs(da[i]) < INDIVIDUAL_DONE_THRESH):
             if(not is_done[i]):
-                da[i] = (cost(f"a{i}") - cost()) / H
+                da[i] = -derivative(f"a{i}") / H
             is_done[i] = True
         if(not is_done[i]):
-            da[i] = (cost(f"a{i}") - cost()) / H
+            -derivative(f"a{i}") / H
         
         
         if(abs(db[i]) < INDIVIDUAL_DONE_THRESH):
             if(not is_done[i + 12]):
-                db[i] = (cost(f"b{i}") - cost()) / H
+                db[i] = -derivative(f"b{i}") / H
             is_done[i + 12] = True
         if(not is_done[i + 12]):
-            db[i] = (cost(f"b{i}") - cost()) / H
+            db[i] = -derivative(f"b{i}") / H
 
         if(abs(dc[i]) < INDIVIDUAL_DONE_THRESH):
             if(not is_done[i + 24]):
-                dc[i] = (cost(f"c{i}") - cost()) / H
+                dc[i] = -derivative(f"c{i}") / H
             is_done[i + 24] = True
         if(not is_done[i + 24]):
-            dc[i] = (cost(f"c{i}") - cost()) / H
+            dc[i] = -derivative(f"c{i}") / H
                   
     if(abs(dd) < INDIVIDUAL_DONE_THRESH):
         if(not is_done[36]):
-            dd = (cost("dd") - cost()) / H
+            dd = -derivative("d") / H
         is_done[36] = True
     if(not is_done[36]):
-        dd = (cost("dd") - cost()) / H
+        dd = -derivative("d") / H
 
     for i in range(len(a)):
         if(not is_done[i]):
-            a[i] -= (da[i] ** 2) * math.copysign(1, da[i]) * LEARNING_RATE2 + da[i] * LEARNING_RATE1 + math.copysign(1, da[i]) * LEARNING_RATE0
+            a[i] -= da[i] * LEARNING_RATE
         if(not is_done[i + 12]):
-            b[i] -= (db[i] ** 2) * math.copysign(1, db[i]) * LEARNING_RATE2 + db[i] * LEARNING_RATE1 + math.copysign(1, db[i]) * LEARNING_RATE0
+            b[i] -= db[i] * LEARNING_RATE
         if(not is_done[i + 24]):
-            c[i] -= (dc[i] ** 2) * math.copysign(1, dc[i]) * LEARNING_RATE2 + dc[i] * LEARNING_RATE1 + math.copysign(1, dc[i]) * LEARNING_RATE0
+            c[i] -= dc[i] * LEARNING_RATE
     if(not is_done[36]):
-        d -= (dd ** 2) * math.copysign(1, dd) * LEARNING_RATE2 + dd * LEARNING_RATE1 + math.copysign(1, dd) * LEARNING_RATE0
+        d -= dd * LEARNING_RATE
 
     if (done_next and (percent_done() >= 37 or last_cost - cost() < DONE_THRESH) and counter >= 100) or counter >= 1000:
         done_next = True
