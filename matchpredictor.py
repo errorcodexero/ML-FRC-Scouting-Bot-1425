@@ -73,13 +73,16 @@ def get_test_matches(team):
     teams_gotten.append(team)
     print(f"Getting some test matches for team {team}...")
     team_events = sb.get_team_events(team, year)
-
-    matches = sb.get_matches(None, None, team_events[-1]["event"])
-
-    if not (len(team_events) == 1):
-        matches += sb.get_matches(None, None, team_events[-2]["event"])
+    team_events.sort(key= lambda x: x["week"], reverse= True)
     
-    return matches[len(matches) - 101:]
+    print(team_events)
+    matches = sb.get_matches(None, None, team_events[-1]["event"])
+    matches += matches
+
+    if not (len(team_events) == 1) and team < 9990:
+         matches += sb.get_matches(None, None, team_events[-2]["event"])[int(-len(matches)/2):]
+    
+    return matches[:151]
 
 def abs_avg(dict):
     ret = 0
