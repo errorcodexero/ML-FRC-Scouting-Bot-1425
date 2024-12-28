@@ -1,34 +1,46 @@
-const axios = require('axios');
-const readline = require('readline');
+const axios = require("axios");
+const readline = require("readline");
 
-const TBA_API_KEY = process.env.TBA_API_KEY ; // Replace with your actual TBA API key
-const BASE_URL = 'https://www.thebluealliance.com/api/v3';
+const TBA_API_KEY = process.env.TBA_API_KEY; // Replace with your actual TBA API key
+const BASE_URL = "https://www.thebluealliance.com/api/v3";
 
-const LEARNING_RATE0 = 0.0;
-const LEARNING_RATE1 = 0.00000000001;
-const LEARNING_RATE2 = 0.0;
+const LEARNING_RATE0 = 0.0001;
+const LEARNING_RATE1 = 0.00001;
+const LEARNING_RATE2 = 0.0000001;
+const LEARNING_RATE3 = 0.0000000001;
 const DONE_THRESH = 0.01;
 const matchStats = [];
 const matchData = {};
-let trainedNumbers = {}
+let trainedNumbers = {};
 //const H = 0.00000000000000001;
 
 // THIS CHANGES PER YEAR
 // replace with data for current year
 // this is for 2024
-const subDataPoints = ["autoAmpNotePoints", "autoSpeakerNotePoints", "autoLeavePoints", "teleopAmpNotePoints", "teleopSpeakerNotePoints", "foulpoints", "endgameHarmonyPoints", "endgameNoteInTrapPoints", "endgameOnStagePoints", "endgameParkPoints", "endGameSpotLightBonusPoints"];
-
+const subDataPoints = [
+  "autoAmpNotePoints",
+  "autoSpeakerNotePoints",
+  "autoLeavePoints",
+  "teleopAmpNotePoints",
+  "teleopSpeakerNotePoints",
+  "foulpoints",
+  "endgameHarmonyPoints",
+  "endgameNoteInTrapPoints",
+  "endgameOnStagePoints",
+  "endgameParkPoints",
+  "endGameSpotLightBonusPoints",
+];
 
 //const INDIVIDUAL_DONE_THRESH = 0.8;
 //const DONE_THRESH = 0.00005;
 
 /**
  * Prompts the user to enter a year for training data and validates the input.
- * 
+ *
  * This function creates a readline interface to get user input from the console.
  * It asks the user to enter a year, validates that the input is a number between 1992
  * and the current year, and returns the validated year as a Promise.
- * 
+ *
  * @async
  * @function getYearFromUser
  * @returns {Promise<number>} A Promise that resolves with the validated year as a number.
@@ -37,15 +49,21 @@ const subDataPoints = ["autoAmpNotePoints", "autoSpeakerNotePoints", "autoLeaveP
 async function getYearFromUser() {
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
 
   return new Promise((resolve) => {
-    rl.question('Enter the year you want to train data on: ', (year) => {
+    rl.question("Enter the year you want to train data on: ", (year) => {
       rl.close();
       const parsedYear = parseInt(year);
-      if (isNaN(parsedYear) || parsedYear < 1992 || parsedYear > new Date().getFullYear()) {
-        console.log('Invalid year. Please enter a valid year between 1992 and the current year.');
+      if (
+        isNaN(parsedYear) ||
+        parsedYear < 1992 ||
+        parsedYear > new Date().getFullYear()
+      ) {
+        console.log(
+          "Invalid year. Please enter a valid year between 1992 and the current year."
+        );
         resolve(getUserInputYear()); // Recursively ask for input if invalid
       } else {
         resolve(parsedYear);
@@ -54,10 +72,9 @@ async function getYearFromUser() {
   });
 }
 
-
 /**
  * Asynchronously adds new data to a JSON file, creating the file if it doesn't exist.
- * 
+ *
  * This function reads an existing JSON file (if it exists), merges new data with the existing data,
  * and writes the updated data back to the file. If the file doesn't exist, it creates a new file
  * with the provided data.
@@ -72,21 +89,34 @@ async function addToJsonFile(filename, newData) {
 
   // Read existing file if it exists
   if (fs.existsSync(filename)) {
-    const fileContent = fs.readFileSync(filename, 'utf8');
+    const fileContent = fs.readFileSync(filename, "utf8");
     data = JSON.parse(fileContent);
   }
 
   // Add new data
-  Object.assign(data, newData);
+  data = { ...data, ...newData };
 
   // Write updated data back to file
   fs.writeFileSync(filename, JSON.stringify(data, null, 2));
 }
 
+async function getDataFromFile(filename) {
+  try {
+    const data = await fs.readFile(filename, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.error(`File not found: ${filename}`);
+    } else {
+      console.error(`Error reading file ${filename}: ${error.message}`);
+    }
+    throw error;
+  }
+}
 
 /**
  * Fetches data from The Blue Alliance API for a given endpoint.
- * 
+ *
  * This function makes an asynchronous GET request to The Blue Alliance API
  * using the provided endpoint. It includes the necessary authentication
  * header for API access.
@@ -100,8 +130,8 @@ async function getTBAData(endpoint) {
   try {
     const response = await axios.get(`${BASE_URL}${endpoint}`, {
       headers: {
-        'X-TBA-Auth-Key': TBA_API_KEY
-      }
+        "X-TBA-Auth-Key": TBA_API_KEY,
+      },
     });
     return response.data;
   } catch (error) {
@@ -110,10 +140,9 @@ async function getTBAData(endpoint) {
   }
 }
 
-
 /**
  * Fetches and processes match data for a given year from The Blue Alliance API.
- * 
+ *
  * This function retrieves all events for the specified year, then fetches match data
  * for each event. It processes this data and populates the global `matchStats` array
  * with detailed statistics for each team's performance in their matches.
@@ -126,26 +155,40 @@ async function getTBAData(endpoint) {
 async function getMatchData(year) {
   events = await getTBAData(`events/${year}/keys`);
   let matches = [];
-  for(let i = 0; i < events.length; i++){
+  for (let i = 0; i < events.length; i++) {
     matches.push(...(await getTBAData(`/event/${events[i]}/matches`)));
   }
   // need to get the data for each match and put it into matchStats
-  for(let i = 0; i < 10000; i ++){
+  for (let i = 0; i < 10000; i++) {
     matchStats.push([]);
   }
-  for(let i = 0; i < matches.length; i++){
-    for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++){
-      matchStats[matches[i].alliances.red.team_keys[j].substring(3).parseInt()].push({teamStats: matches[i].score_breakdown.red, oppStats: matches[i].score_breakdown.blue, comp: matches[i].key, time: matches[i].time});
+  for (let i = 0; i < matches.length; i++) {
+    for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++) {
+      matchStats[
+        matches[i].alliances.red.team_keys[j].substring(3).parseInt()
+      ].push({
+        teamStats: matches[i].score_breakdown.red,
+        oppStats: matches[i].score_breakdown.blue,
+        comp: matches[i].key,
+        time: matches[i].time,
+      });
     }
-    for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++){
-      matchStats[matches[i].alliances.blue.team_keys[j].substring(3).parseInt()].push({teamStats: matches[i].score_breakdown.blue, oppStats: matches[i].score_breakdown.red, comp: matches[i].key, time: matches[i].time});
+    for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++) {
+      matchStats[
+        matches[i].alliances.blue.team_keys[j].substring(3).parseInt()
+      ].push({
+        teamStats: matches[i].score_breakdown.blue,
+        oppStats: matches[i].score_breakdown.red,
+        comp: matches[i].key,
+        time: matches[i].time,
+      });
     }
   }
 }
 
 /**
  * Initializes the dataset for a specific data point by processing match statistics.
- * 
+ *
  * This function populates the matchData object with processed statistics for the given dataPoint.
  * It calculates various metrics based on historical match data, including averages, recent performance,
  * and opponent statistics.
@@ -154,33 +197,62 @@ async function getMatchData(year) {
  * @param {string} dataPoint - The specific data point (e.g., "autoAmpNotePoints") to initialize the dataset for.
  * @returns {Promise<void>} A promise that resolves when the dataset initialization is complete.
  */
-async function initializeDataset(dataPoint){
+async function initializeDataset(dataPoint) {
   console.log(`Training data initializing...`);
   matchData[dataPoint] = [];
-  for(let i = 0; i < matchStats.length; i++){
-    for(let j = 0; j < matchStats[i].length; j++){
+  for (let i = 0; i < matchStats.length; i++) {
+    for (let j = 0; j < matchStats[i].length; j++) {
       let matchesInComp = 0;
       let matchesInCompOpp = 0;
-      let teamMatchStatsBeforeThisMatch = matchStats[i].filter((val) => val.time < matchStats[i][j].time);
+      let teamMatchStatsBeforeThisMatch = matchStats[i].filter(
+        (val) => val.time < matchStats[i][j].time
+      );
       matchData[dataPoint].push({
-        inputs: [teamMatchStatsBeforeThisMatch.reduce((sum, val) => sum + val.teamStats[dataPoint], 0)/teamMatchStatsBeforeThisMatch.length,
+        inputs: [
+          teamMatchStatsBeforeThisMatch.reduce(
+            (sum, val) => sum + val.teamStats[dataPoint],
+            0
+          ) / teamMatchStatsBeforeThisMatch.length,
           teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
-            if(val.comp === teamMatchStatsBeforeThisMatch[j].comp){
+            if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
               matchesInComp++;
               return sum + val.teamStats[dataPoint];
             }
             return sum;
-          }, 0)/matchesInComp,
-          teamMatchStatsBeforeThisMatch.slice(-3).reduce((last, val) => last > val.teamStats[dataPoint] ? last : val.teamStats[dataPoint], 0)/3,
+          }, 0) / matchesInComp,
+          teamMatchStatsBeforeThisMatch
+            .slice(-3)
+            .reduce(
+              (last, val) =>
+                last > val.teamStats[dataPoint]
+                  ? last
+                  : val.teamStats[dataPoint],
+              0
+            ) / 3,
           teamMatchStatsBeforeThisMatch[j].teamStats[dataPoint],
-          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce((sum, val) => sum + matchStats[val].reduce((sum, val) => sum + val.oppStats[dataPoint], 0)/matchStats[val].length, 0)/3,
-          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce((sum, val) => sum + matchStats[val].reduce((sum, val) => {
-            if(val.comp === teamMatchStatsBeforeThisMatch[j].comp){
-              matchesInCompOpp++;
-              return sum + val.oppStats[dataPoint];
-            }
-            return sum;
-          }, 0)/matchStats[val].length, 0)/3
+          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce(
+            (sum, val) =>
+              sum +
+              matchStats[val].reduce(
+                (sum, val) => sum + val.oppStats[dataPoint],
+                0
+              ) /
+                matchStats[val].length,
+            0
+          ) / 3,
+          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce(
+            (sum, val) =>
+              sum +
+              matchStats[val].reduce((sum, val) => {
+                if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
+                  matchesInCompOpp++;
+                  return sum + val.oppStats[dataPoint];
+                }
+                return sum;
+              }, 0) /
+                matchStats[val].length,
+            0
+          ) / 3,
         ],
         actual: matchStats[j].teamStats[dataPoint],
       });
@@ -189,11 +261,9 @@ async function initializeDataset(dataPoint){
   console.log(`Training data initialized!`);
 }
 
-
-
 /**
  * Trains a predictive model for a specific data point using match data.
- * 
+ *
  * This function initializes model parameters, performs iterative training to minimize prediction error,
  * and saves the trained model weights to a JSON file. It uses a cubic polynomial regression approach
  * with gradient descent for optimization.
@@ -202,39 +272,50 @@ async function initializeDataset(dataPoint){
  * @param {string} dataPoint - The specific data point (e.g., "autoAmpNotePoints") to train the model on.
  * @returns {Promise<void>} A promise that resolves when the training is complete and weights are saved.
  */
-async function trainData(dataPoint){
+async function trainData(dataPoint) {
   console.log(`Training started!`);
-  trainedNumbers[dataPoint] = {a: [0, 0, 0, 0, 0, 0], b: [0, 0, 0, 0, 0, 0], c: [0, 0, 0, 0, 0, 0], d: 0};
-  function prediction(index){
+  trainedNumbers[dataPoint] = {
+    a: [0, 0, 0, 0, 0, 0],
+    b: [0, 0, 0, 0, 0, 0],
+    c: [0, 0, 0, 0, 0, 0],
+    d: 0,
+  };
+
+  function prediction(index) {
     let ret = 0;
-    for(let i = 0; i < matchData[dataPoint][index].preds.length; i++){
-      ret += trainedNumbers[dataPoint].a[i] * matchData[dataPoint][index].preds[i] ** 3;
-      ret += trainedNumbers[dataPoint].b[i] * matchData[dataPoint][index].preds[i] ** 2;
-      ret += trainedNumbers[dataPoint].c[i] * matchData[dataPoint][index].preds[i];
+    for (let i = 0; i < matchData[dataPoint][index].preds.length; i++) {
+      ret +=
+        trainedNumbers[dataPoint].a[i] *
+        matchData[dataPoint][index].preds[i] ** 3;
+      ret +=
+        trainedNumbers[dataPoint].b[i] *
+        matchData[dataPoint][index].preds[i] ** 2;
+      ret +=
+        trainedNumbers[dataPoint].c[i] * matchData[dataPoint][index].preds[i];
     }
     ret += trainedNumbers[dataPoint].d;
     return ret;
   }
 
-  function avgError(){
+  function avgError() {
     let sum = 0;
-    for(let i = 0; i < matchData[dataPoint].length; i++){
+    for (let i = 0; i < matchData[dataPoint].length; i++) {
       sum += Math.abs(prediction(i) - matchData[dataPoint][i].actual);
     }
     return sum / matchData[dataPoint].length;
   }
 
-  function updateWeights(){
-    for(let i = 0; i < matchData[dataPoint].length; i++){
-      function errDerivitave(power, dataIndex){
+  function updateWeights() {
+    for (let i = 0; i < matchData[dataPoint].length; i++) {
+      function errDerivitave(power, dataIndex) {
         let chain1 = 2 * (prediction(i) - matchData[dataPoint][i].actual); // derivitave of error with respect to prediction
         let chain2 = matchData[dataPoint][i].preds[dataIndex] ** power; // derivative of prediction with respect to input
-        return chain1 * chain2
+        return chain1 * chain2;
       }
-      for(let j = 0; j < matchData[dataPoint][i].preds.length; j++){
-        trainedNumbers[dataPoint].a[j] -= LEARNING_RATE0 * errDerivitave(3, j);
-        trainedNumbers[dataPoint].b[j] -= LEARNING_RATE1 * errDerivitave(2, j);
-        trainedNumbers[dataPoint].c[j] -= LEARNING_RATE2 * errDerivitave(1, j);
+      for (let j = 0; j < matchData[dataPoint][i].preds.length; j++) {
+        trainedNumbers[dataPoint].a[j] -= LEARNING_RATE3 * errDerivitave(3, j);
+        trainedNumbers[dataPoint].b[j] -= LEARNING_RATE2 * errDerivitave(2, j);
+        trainedNumbers[dataPoint].c[j] -= LEARNING_RATE1 * errDerivitave(1, j);
       }
       trainedNumbers[dataPoint].d += LEARNING_RATE0 * errDerivitave(0, 0);
     }
@@ -248,7 +329,7 @@ async function trainData(dataPoint){
   let lastError = avgError();
   let error = 0;
 
-  while (lastError - error > DONE_THRESH){
+  while (lastError - error > DONE_THRESH) {
     lastError = avgError();
     updateWeights();
     error = avgError();
@@ -258,22 +339,22 @@ async function trainData(dataPoint){
   console.log(`Saving weights...`);
 
   // save trainedNumbers to a json file
-  await addToJsonFile('trainedNumbers.json', trainedNumbers)
+  let savedData = {};
+  savedData[dataPoint] = trainedNumbers;
+  await addToJsonFile("trainedNumbers.json", savedData);
 
   console.log(`Done training ${dataPoint}!`);
 }
-
-
 
 async function main() {
   console.log("Starting!");
   const year = await getUserInputYear();
   await getMatchData(year);
-  for(let i = 0; i < subDataPoints.length; i++){
+  for (let i = 0; i < subDataPoints.length; i++) {
     await initializeDataset(subDataPoints[i]);
     await trainData(subDataPoints[i]);
   }
-  console.log("Done!")
+  console.log("Done!");
 }
 
 main();
