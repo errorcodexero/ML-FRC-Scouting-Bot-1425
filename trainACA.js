@@ -1,5 +1,6 @@
 const axios = require("axios");
 const readline = require("readline");
+const fs = require("fs");
 
 const TBA_API_KEY = process.env.TBA_API_KEY; // Replace with your actual TBA API key
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
@@ -24,10 +25,10 @@ const subDataPoints = [
   "teleopAmpNotePoints",
   "teleopSpeakerNotePoints",
   "foulpoints",
-  "endgameHarmonyPoints",
-  "endgameNoteInTrapPoints",
-  "endgameOnStagePoints",
-  "endgameParkPoints",
+  "endGameHarmonyPoints",
+  "endGameNoteInTrapPoints",
+  "endGameOnStagePoints",
+  "endGameParkPoints",
   "endGameSpotLightBonusPoints",
 ];
 
@@ -64,7 +65,7 @@ async function getYearFromUser() {
         console.log(
           "Invalid year. Please enter a valid year between 1992 and the current year."
         );
-        resolve(getUserInputYear()); // Recursively ask for input if invalid
+        resolve(getYearFromUser()); // Recursively ask for input if invalid
       } else {
         resolve(parsedYear);
       }
@@ -100,20 +101,6 @@ async function addToJsonFile(filename, newData) {
   fs.writeFileSync(filename, JSON.stringify(data, null, 2));
 }
 
-async function getDataFromFile(filename) {
-  try {
-    const data = await fs.readFile(filename, "utf8");
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      console.error(`File not found: ${filename}`);
-    } else {
-      console.error(`Error reading file ${filename}: ${error.message}`);
-    }
-    throw error;
-  }
-}
-
 /**
  * Fetches data from The Blue Alliance API for a given endpoint.
  *
@@ -135,8 +122,8 @@ async function getTBAData(endpoint) {
     });
     return response.data;
   } catch (error) {
-    console.error(`Error fetching data from TBA: ${error.message}`);
-    throw error;
+    console.error(`Error fetching data from TBA:`);
+    //throw error;
   }
 }
 
@@ -153,10 +140,15 @@ async function getTBAData(endpoint) {
  * @throws {Error} If there's an error fetching or processing the data.
  */
 async function getMatchData(year) {
-  events = await getTBAData(`events/${year}/keys`);
+  console.log(year);
+  events = await getTBAData(`/events/${year}/keys`);
+  //console.log(events);
   let matches = [];
-  for (let i = 0; i < events.length; i++) {
-    matches.push(...(await getTBAData(`/event/${events[i]}/matches`)));
+  for (let i = 0; i < 1; i++) {
+    //console.log(i);
+    let data = await getTBAData(`/event/${events[i]}/matches`);
+    //console.log(data);
+    matches.push(...data);
   }
   // need to get the data for each match and put it into matchStats
   for (let i = 0; i < 10000; i++) {
@@ -164,22 +156,19 @@ async function getMatchData(year) {
   }
   for (let i = 0; i < matches.length; i++) {
     for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++) {
-      matchStats[
-        matches[i].alliances.red.team_keys[j].substring(3).parseInt()
-      ].push({
+      //console.log(+matches[i].alliances.red.team_keys[j].substring(3));
+      matchStats[+matches[i].alliances.red.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.red,
-        oppStats: matches[i].score_breakdown.blue,
+        oppTeams: matches[i].alliances.blue.team_keys,
         comp: matches[i].key,
         time: matches[i].time,
       });
     }
     for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++) {
-      matchStats[
-        matches[i].alliances.blue.team_keys[j].substring(3).parseInt()
-      ].push({
+      matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.blue,
-        oppStats: matches[i].score_breakdown.red,
-        comp: matches[i].key,
+        oppTeams: matches[i].alliances.red.team_keys,
+        comp: matches[i].event_key,
         time: matches[i].time,
       });
     }
@@ -200,13 +189,29 @@ async function getMatchData(year) {
 async function initializeDataset(dataPoint) {
   console.log(`Training data initializing...`);
   matchData[dataPoint] = [];
+  let oppTeamsThatHaveData = 3;
   for (let i = 0; i < matchStats.length; i++) {
+    //console.log("i" + i);
     for (let j = 0; j < matchStats[i].length; j++) {
-      let matchesInComp = 0;
+      //console.log("j" + j);
       let matchesInCompOpp = 0;
-      let teamMatchStatsBeforeThisMatch = matchStats[i].filter(
-        (val) => val.time < matchStats[i][j].time
-      );
+      let teamMatchStatsBeforeThisMatch = matchStats[i]
+        .filter((val) => val.time < matchStats[i][j].time)
+        .sort((a, b) => a.time < b.time);
+      if (teamMatchStatsBeforeThisMatch.length == 0) {
+        continue;
+      }
+      //console.log(teamMatchStatsBeforeThisMatch.length);
+      let matchesInComp = teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
+        if (val.comp == matchStats[i][j].comp) {
+          return sum + 1;
+        }
+        return sum;
+      }, 0);
+      console.log(matchesInComp);
+      if (matchesInComp === 0) {
+        continue;
+      }
       matchData[dataPoint].push({
         inputs: [
           teamMatchStatsBeforeThisMatch.reduce(
@@ -214,8 +219,7 @@ async function initializeDataset(dataPoint) {
             0
           ) / teamMatchStatsBeforeThisMatch.length,
           teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
-            if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
-              matchesInComp++;
+            if (val.comp === matchStats[i][j].comp) {
               return sum + val.teamStats[dataPoint];
             }
             return sum;
@@ -229,35 +233,52 @@ async function initializeDataset(dataPoint) {
                   : val.teamStats[dataPoint],
               0
             ) / 3,
-          teamMatchStatsBeforeThisMatch[j].teamStats[dataPoint],
-          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce(
-            (sum, val) =>
+          teamMatchStatsBeforeThisMatch[
+            teamMatchStatsBeforeThisMatch.length - 1
+          ].teamStats[dataPoint],
+          (teamMatchStatsBeforeThisMatch[
+            teamMatchStatsBeforeThisMatch.length - 1
+          ].oppTeams.reduce((sum, val) => {
+            if (!matchStats[val]) {
+              oppTeamsThatHaveData--;
+              return sum;
+            }
+            return (
               sum +
               matchStats[val].reduce(
                 (sum, val) => sum + val.oppStats[dataPoint],
                 0
               ) /
-                matchStats[val].length,
-            0
-          ) / 3,
-          teamMatchStatsBeforeThisMatch[j].oppTeams.reduce(
+                matchStats[val].length
+            );
+          }, 0) *
+            (1 + oppTeamsThatHaveData)) /
+            3,
+          (teamMatchStatsBeforeThisMatch[
+            teamMatchStatsBeforeThisMatch.length - 1
+          ].oppTeams.reduce(
             (sum, val) =>
-              sum +
-              matchStats[val].reduce((sum, val) => {
-                if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
-                  matchesInCompOpp++;
-                  return sum + val.oppStats[dataPoint];
-                }
-                return sum;
-              }, 0) /
-                matchStats[val].length,
+              matchStats[val]
+                ? sum +
+                  matchStats[val].reduce((sum, val) => {
+                    if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
+                      matchesInCompOpp++;
+                      return sum + val.oppStats[dataPoint];
+                    }
+                    return sum;
+                  }, 0) /
+                    matchStats[val].length
+                : sum,
             0
-          ) / 3,
+          ) *
+            (1 + oppTeamsThatHaveData)) /
+            3,
         ],
-        actual: matchStats[j].teamStats[dataPoint],
+        actual: matchStats[i][j].teamStats[dataPoint],
       });
     }
   }
+  console.log(matchData[dataPoint].length, matchData[dataPoint][1]);
   console.log(`Training data initialized!`);
 }
 
@@ -283,15 +304,15 @@ async function trainData(dataPoint) {
 
   function prediction(index) {
     let ret = 0;
-    for (let i = 0; i < matchData[dataPoint][index].preds.length; i++) {
+    for (let i = 0; i < matchData[dataPoint][index].inputs.length; i++) {
       ret +=
         trainedNumbers[dataPoint].a[i] *
-        matchData[dataPoint][index].preds[i] ** 3;
+        matchData[dataPoint][index].inputs[i] ** 3;
       ret +=
         trainedNumbers[dataPoint].b[i] *
-        matchData[dataPoint][index].preds[i] ** 2;
+        matchData[dataPoint][index].inputs[i] ** 2;
       ret +=
-        trainedNumbers[dataPoint].c[i] * matchData[dataPoint][index].preds[i];
+        trainedNumbers[dataPoint].c[i] * matchData[dataPoint][index].inputs[i];
     }
     ret += trainedNumbers[dataPoint].d;
     return ret;
@@ -309,10 +330,10 @@ async function trainData(dataPoint) {
     for (let i = 0; i < matchData[dataPoint].length; i++) {
       function errDerivitave(power, dataIndex) {
         let chain1 = 2 * (prediction(i) - matchData[dataPoint][i].actual); // derivitave of error with respect to prediction
-        let chain2 = matchData[dataPoint][i].preds[dataIndex] ** power; // derivative of prediction with respect to input
+        let chain2 = matchData[dataPoint][i].inputs[dataIndex] ** power; // derivative of prediction with respect to input
         return chain1 * chain2;
       }
-      for (let j = 0; j < matchData[dataPoint][i].preds.length; j++) {
+      for (let j = 0; j < matchData[dataPoint][i].inputs.length; j++) {
         trainedNumbers[dataPoint].a[j] -= LEARNING_RATE3 * errDerivitave(3, j);
         trainedNumbers[dataPoint].b[j] -= LEARNING_RATE2 * errDerivitave(2, j);
         trainedNumbers[dataPoint].c[j] -= LEARNING_RATE1 * errDerivitave(1, j);
@@ -328,11 +349,14 @@ async function trainData(dataPoint) {
 
   let lastError = avgError();
   let error = 0;
-
-  while (lastError - error > DONE_THRESH) {
+  console.log(lastError);
+  while (lastError - error < DONE_THRESH) {
     lastError = avgError();
     updateWeights();
     error = avgError();
+    if (lastError - error < DONE_THRESH) {
+      break;
+    }
   }
 
   console.log(`Training completed!`);
@@ -348,7 +372,7 @@ async function trainData(dataPoint) {
 
 async function main() {
   console.log("Starting!");
-  const year = await getUserInputYear();
+  const year = await getYearFromUser();
   await getMatchData(year);
   for (let i = 0; i < subDataPoints.length; i++) {
     await initializeDataset(subDataPoints[i]);

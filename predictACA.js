@@ -1,6 +1,6 @@
 const fs = require("fs").promises;
-const { relative } = require("path");
 const readline = require("readline");
+const axios = require("axios");
 
 const TBA_API_KEY = process.env.TBA_API_KEY;
 const teamMatchData = [];
