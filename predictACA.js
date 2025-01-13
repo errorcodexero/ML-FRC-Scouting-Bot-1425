@@ -3,6 +3,7 @@ const readline = require("readline");
 const axios = require("axios");
 
 const TBA_API_KEY = process.env.TBA_API_KEY;
+const BASE_URL = "https://www.thebluealliance.com/api/v3";
 const teamMatchData = [];
 const subDataPoints = [
   "autoAmpNotePoints",
@@ -17,6 +18,11 @@ const subDataPoints = [
   "endgameParkPoints",
   "endGameSpotLightBonusPoints",
 ];
+
+const oppTeamMatchStats = [];
+for (let i = 0; i < 10000; i++) {
+  oppTeamMatchStats.push([]);
+}
 
 async function getDataFromFile(filename) {
   try {
@@ -73,31 +79,50 @@ async function getTBAData(endpoint) {
 }
 
 async function getTeamData(teamNumber) {
-  var teamKey = teamNumber;
-  if (!teamKey.contains("frc")) {
+  var teamKey = String(teamNumber);
+  if (!teamKey.includes("frc")) {
     teamKey = "frc" + teamNumber;
   }
 
   const teamData = await getTBAData(
-    `/team/${teamKey}/matches/${askUserQuestion(
+    `/team/${teamKey}/matches/${await askUserQuestion(
       "What year do you want to predict for?"
     )}`
   );
-  for (let i = 0; i < teamMatchData.length; i++) {
-    if (teamKey in teamMatchData.alliances.red.teamKeys) {
+
+  for (let i = 0; i < teamData.length; i++) {
+    if (teamData[i].alliances.red.team_keys.includes(teamKey)) {
       teamMatchData.push({
-        teamStats: teamMatchData[i].score_breakdown.red,
-        oppStats: teamMatchData[i].score_breakdown.blue,
-        comp: teamMatchData[i].key,
-        time: teamMatchData[i].time,
+        teamStats: teamData[i].score_breakdown.red,
+        oppTeams: teamData[i].alliances.blue.team_keys,
+        comp: teamData[i].key,
+        time: teamData[i].time,
       });
+      for (let j = 0; j < teamData[i].alliances.blue.team_keys.length; j++) {
+        oppTeamMatchStats[
+          +teamData[i].alliances.blue.team_keys[j].substring(3)
+        ].push({
+          teamStats: teamData[i].score_breakdown.blue,
+          comp: teamData[i].event_key,
+          time: teamData[i].time,
+        });
+      }
     } else {
       teamMatchData.push({
-        teamStats: teamMatchData[i].score_breakdown.blue,
-        oppStats: teamMatchData[i].score_breakdown.red,
-        comp: teamMatchData[i].key,
-        time: teamMatchData[i].time,
+        teamStats: teamData[i].score_breakdown.blue,
+        oppStats: teamData[i].alliances.red.team_keys,
+        comp: teamData[i].key,
+        time: teamData[i].time,
       });
+      for (let j = 0; j < teamData[i].alliances.red.team_keys.length; j++) {
+        oppTeamMatchStats[
+          +teamData[i].alliances.red.team_keys[j].substring(3)
+        ].push({
+          teamStats: teamData[i].score_breakdown.red,
+          comp: teamData[i].event_key,
+          time: teamData[i].time,
+        });
+      }
     }
   }
 }
@@ -105,27 +130,27 @@ async function getTeamData(teamNumber) {
 async function predictData(dataPoint) {
   const trainedNumbers = await getDataFromFile("trainedNumbers.json");
 
-  if (!dataPoint in subDataPoints) {
-    if ("auto" in dataPoint) {
+  if (!subDataPoints.includes(dataPoint)) {
+    if (dataPoint.includes("auto")) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].contains("auto")) {
+        if (subDataPoints[i].includes("auto")) {
           ret += predictData(subDataPoints[i]);
         }
       }
       return ret;
-    } else if ("teleop" in dataPoint) {
+    } else if (dataPoint.includes("teleop")) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].contains("teleop")) {
+        if (subDataPoints[i].includes("teleop")) {
           ret += predictData(subDataPoints[i]);
         }
       }
       return ret;
-    } else if ("endgame" in dataPoint) {
+    } else if (dataPoint.includes("endgame")) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].contains("endgame")) {
+        if (subDataPoints[i].includes("endgame")) {
           ret += predictData(subDataPoints[i]);
         }
       }
@@ -144,7 +169,6 @@ async function predictData(dataPoint) {
       teamMatchData.length,
     teamMatchData.reduce((sum, val) => {
       if (val.comp === teamMatchData[j].comp) {
-        matchesInComp++;
         return sum + val.teamStats[dataPoint];
       }
       return sum;
@@ -156,27 +180,40 @@ async function predictData(dataPoint) {
           last > val.teamStats[dataPoint] ? last : val.teamStats[dataPoint],
         0
       ) / 3,
-    teamMatchData[j].teamStats[dataPoint],
-    teamMatchData[j].oppTeams.reduce(
-      (sum, val) =>
+    teamMatchData[teamMatchData.length - 1].teamStats[dataPoint],
+    (teamMatchData[j].oppTeams.reduce((sum, val) => {
+      if (!oppTeamMatchStats[+val.substring(3)]) {
+        oppTeamsThatHaveData--;
+        return sum;
+      }
+      return (
         sum +
-        matchStats[val].reduce((sum, val) => sum + val.oppStats[dataPoint], 0) /
-          matchStats[val].length,
-      0
-    ) / 3,
-    teamMatchData[j].oppTeams.reduce(
+        oppTeamMatchStats[+val.substring(3)].reduce(
+          (sum, val) => sum + val.teamStats[dataPoint],
+          0
+        ) /
+          oppTeamMatchStats[+val.substring(3)].length
+      );
+    }, 0) *
+      (1 + oppTeamsThatHaveData)) /
+      3,
+    (teamMatchData[j].oppTeams.reduce(
       (sum, val) =>
-        sum +
-        matchStats[val].reduce((sum, val) => {
-          if (val.comp === teamMatchData[j].comp) {
-            matchesInCompOpp++;
-            return sum + val.oppStats[dataPoint];
-          }
-          return sum;
-        }, 0) /
-          matchStats[val].length,
+        oppTeamMatchStats[+val.substring(3)]
+          ? sum +
+            oppTeamMatchStats[+val.substring(3)].reduce((sum, val) => {
+              if (val.comp === teamMatchData[j].comp) {
+                matchesInCompOpp++;
+                return sum + val.teamStats[dataPoint];
+              }
+              return sum;
+            }, 0) /
+              oppTeamMatchStats[+val.substring(3)].length
+          : sum,
       0
-    ) / 3,
+    ) *
+      (1 + oppTeamsThatHaveData)) /
+      3,
   ];
 
   function prediction(dataPoint) {

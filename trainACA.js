@@ -5,11 +5,11 @@ const fs = require("fs");
 const TBA_API_KEY = process.env.TBA_API_KEY; // Replace with your actual TBA API key
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
 
-const LEARNING_RATE0 = 0.0001;
-const LEARNING_RATE1 = 0.00001;
-const LEARNING_RATE2 = 0.0000001;
-const LEARNING_RATE3 = 0.0000000001;
-const DONE_THRESH = 0.01;
+const LEARNING_RATE0 = 0.00001;
+const LEARNING_RATE1 = 0.000001;
+const LEARNING_RATE2 = 0.000000001;
+const LEARNING_RATE3 = 0.00000000000001;
+const DONE_THRESH = 0.0002;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
@@ -18,13 +18,13 @@ let trainedNumbers = {};
 // THIS CHANGES PER YEAR
 // replace with data for current year
 // this is for 2024
-const subDataPoints = [
+const trainingPoints = [
   "autoAmpNotePoints",
   "autoSpeakerNotePoints",
   "autoLeavePoints",
   "teleopAmpNotePoints",
   "teleopSpeakerNotePoints",
-  "foulpoints",
+  "foulPoints",
   "endGameHarmonyPoints",
   "endGameNoteInTrapPoints",
   "endGameOnStagePoints",
@@ -32,100 +32,108 @@ const subDataPoints = [
   "endGameSpotLightBonusPoints",
 ];
 
-//const INDIVIDUAL_DONE_THRESH = 0.8;
-//const DONE_THRESH = 0.00005;
+//WARNING:
+//EVERYTHING IN HERE IS WRITTEN BY TABNINE, AN AI
 
-/**
- * Prompts the user to enter a year for training data and validates the input.
- *
- * This function creates a readline interface to get user input from the console.
- * It asks the user to enter a year, validates that the input is a number between 1992
- * and the current year, and returns the validated year as a Promise.
- *
- * @async
- * @function getYearFromUser
- * @returns {Promise<number>} A Promise that resolves with the validated year as a number.
- * @throws {Error} If there's an issue with the readline interface or Promise resolution.
- */
-async function getYearFromUser() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question("Enter the year you want to train data on: ", (year) => {
-      rl.close();
-      const parsedYear = parseInt(year);
-      if (
-        isNaN(parsedYear) ||
-        parsedYear < 1992 ||
-        parsedYear > new Date().getFullYear()
-      ) {
-        console.log(
-          "Invalid year. Please enter a valid year between 1992 and the current year."
-        );
-        resolve(getYearFromUser()); // Recursively ask for input if invalid
-      } else {
-        resolve(parsedYear);
-      }
+//I WAS TOO LAZY TO WRITE THESE USEFUL BITS OF CODE MYSELF
+//THIS IS NOT THE REAL MEAT, I CODED ALL THE ACTUAL TRAINING STUFF MYSELF
+//AI IS KINDA THE BEST FOR CODING THOUGH
+//ALSO ALL THE COMMENTS ARE WRITTEN BY AI, AND CHECKED BY ME
+//I HATE COMMENTING MY CODE SO I LOVE THIS TOOL
+//IMMA STOP RAMBLING IN CAPSLOCK NOW
+const AI_FUNCS = {
+  /**
+   * Prompts the user to enter a year for training data and validates the input.
+   *
+   * This function creates a readline interface to get user input from the console.
+   * It asks the user to enter a year, validates that the input is a number between 1992
+   * and the current year, and returns the validated year as a Promise.
+   *
+   * @async
+   * @function getYearFromUser
+   * @returns {Promise<number>} A Promise that resolves with the validated year as a number.
+   * @throws {Error} If there's an issue with the readline interface or Promise resolution.
+   */
+  getYearFromUser: async function () {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
     });
-  });
-}
 
-/**
- * Asynchronously adds new data to a JSON file, creating the file if it doesn't exist.
- *
- * This function reads an existing JSON file (if it exists), merges new data with the existing data,
- * and writes the updated data back to the file. If the file doesn't exist, it creates a new file
- * with the provided data.
- *
- * @async
- * @param {string} filename - The name of the JSON file to read from and write to.
- * @param {Object} newData - An object containing the new data to be added to the JSON file.
- * @returns {Promise<void>} A promise that resolves when the operation is complete.
- */
-async function addToJsonFile(filename, newData) {
-  let data = {};
-
-  // Read existing file if it exists
-  if (fs.existsSync(filename)) {
-    const fileContent = fs.readFileSync(filename, "utf8");
-    data = JSON.parse(fileContent);
-  }
-
-  // Add new data
-  data = { ...data, ...newData };
-
-  // Write updated data back to file
-  fs.writeFileSync(filename, JSON.stringify(data, null, 2));
-}
-
-/**
- * Fetches data from The Blue Alliance API for a given endpoint.
- *
- * This function makes an asynchronous GET request to The Blue Alliance API
- * using the provided endpoint. It includes the necessary authentication
- * header for API access.
- *
- * @async
- * @param {string} endpoint - The API endpoint to fetch data from, excluding the base URL.
- * @returns {Promise<Object>} A promise that resolves with the data returned from the API.
- * @throws {Error} If there's an error fetching data from the API, the error is logged and re-thrown.
- */
-async function getTBAData(endpoint) {
-  try {
-    const response = await axios.get(`${BASE_URL}${endpoint}`, {
-      headers: {
-        "X-TBA-Auth-Key": TBA_API_KEY,
-      },
+    return new Promise((resolve) => {
+      rl.question("Enter the year you want to train data on: ", (year) => {
+        rl.close();
+        const parsedYear = parseInt(year);
+        if (
+          isNaN(parsedYear) ||
+          parsedYear < 1992 ||
+          parsedYear > new Date().getFullYear()
+        ) {
+          console.log(
+            "Invalid year. Please enter a valid year between 1992 and the current year."
+          );
+          resolve(getYearFromUser()); // Recursively ask for input if invalid
+        } else {
+          resolve(parsedYear);
+        }
+      });
     });
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching data from TBA:`);
-    //throw error;
-  }
-}
+  },
+
+  /**
+   * Asynchronously adds new data to a JSON file, creating the file if it doesn't exist.
+   *
+   * This function reads an existing JSON file (if it exists), merges new data with the existing data,
+   * and writes the updated data back to the file. If the file doesn't exist, it creates a new file
+   * with the provided data.
+   *
+   * @async
+   * @param {string} filename - The name of the JSON file to read from and write to.
+   * @param {Object} newData - An object containing the new data to be added to the JSON file.
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
+   */
+  writeToJsonFile: async function (filename, newData) {
+    let data = newData;
+
+    // Write updated data back to file
+    fs.writeFileSync(filename, JSON.stringify(data, null, 2));
+  },
+
+  /**
+   * Fetches data from The Blue Alliance API for a given endpoint.
+   *
+   * This function makes an asynchronous GET request to The Blue Alliance API
+   * using the provided endpoint. It includes the necessary authentication
+   * header for API access.
+   *
+   * @async
+   * @param {string} endpoint - The API endpoint to fetch data from, excluding the base URL.
+   * @returns {Promise<Object>} A promise that resolves with the data returned from the API.
+   * @throws {Error} If there's an error fetching data from the API, the error is logged and re-thrown.
+   */
+  getTBAData: async function (endpoint) {
+    try {
+      const response = await axios.get(`${BASE_URL}${endpoint}`, {
+        headers: {
+          "X-TBA-Auth-Key": TBA_API_KEY,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching data from TBA:`);
+      //throw error;
+    }
+  },
+
+  /**
+   * Deletes the last line of the console output.
+   * This function uses ANSI escape codes to move the cursor up one line and clear it.
+   */
+  deleteLastConsoleLine: function () {
+    process.stdout.write("\x1b[1A"); // Move cursor up one line
+    process.stdout.write("\x1b[2K"); // Clear the entire line
+  },
+};
 
 /**
  * Fetches and processes match data for a given year from The Blue Alliance API.
@@ -140,23 +148,19 @@ async function getTBAData(endpoint) {
  * @throws {Error} If there's an error fetching or processing the data.
  */
 async function getMatchData(year) {
-  console.log(year);
-  events = await getTBAData(`/events/${year}/keys`);
-  //console.log(events);
+  events = await AI_FUNCS.getTBAData(`/events/${year}/keys`);
   let matches = [];
   for (let i = 0; i < 1; i++) {
-    //console.log(i);
-    let data = await getTBAData(`/event/${events[i]}/matches`);
-    //console.log(data);
+    let data = await AI_FUNCS.getTBAData(`/event/${events[i]}/matches`);
     matches.push(...data);
   }
   // need to get the data for each match and put it into matchStats
+  // i think this was a reminder but imma leave it anyway
   for (let i = 0; i < 10000; i++) {
     matchStats.push([]);
   }
   for (let i = 0; i < matches.length; i++) {
     for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++) {
-      //console.log(+matches[i].alliances.red.team_keys[j].substring(3));
       matchStats[+matches[i].alliances.red.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.red,
         oppTeams: matches[i].alliances.blue.team_keys,
@@ -191,9 +195,7 @@ async function initializeDataset(dataPoint) {
   matchData[dataPoint] = [];
   let oppTeamsThatHaveData = 3;
   for (let i = 0; i < matchStats.length; i++) {
-    //console.log("i" + i);
     for (let j = 0; j < matchStats[i].length; j++) {
-      //console.log("j" + j);
       let matchesInCompOpp = 0;
       let teamMatchStatsBeforeThisMatch = matchStats[i]
         .filter((val) => val.time < matchStats[i][j].time)
@@ -201,14 +203,12 @@ async function initializeDataset(dataPoint) {
       if (teamMatchStatsBeforeThisMatch.length == 0) {
         continue;
       }
-      //console.log(teamMatchStatsBeforeThisMatch.length);
       let matchesInComp = teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
         if (val.comp == matchStats[i][j].comp) {
           return sum + 1;
         }
         return sum;
       }, 0);
-      console.log(matchesInComp);
       if (matchesInComp === 0) {
         continue;
       }
@@ -236,38 +236,34 @@ async function initializeDataset(dataPoint) {
           teamMatchStatsBeforeThisMatch[
             teamMatchStatsBeforeThisMatch.length - 1
           ].teamStats[dataPoint],
-          (teamMatchStatsBeforeThisMatch[
-            teamMatchStatsBeforeThisMatch.length - 1
-          ].oppTeams.reduce((sum, val) => {
-            if (!matchStats[val]) {
+          (matchStats[i][j].oppTeams.reduce((sum, val) => {
+            if (!matchStats[+val.substring(3)]) {
               oppTeamsThatHaveData--;
               return sum;
             }
             return (
               sum +
-              matchStats[val].reduce(
-                (sum, val) => sum + val.oppStats[dataPoint],
+              matchStats[+val.substring(3)].reduce(
+                (sum, val) => sum + val.teamStats[dataPoint],
                 0
               ) /
-                matchStats[val].length
+                matchStats[+val.substring(3)].length
             );
           }, 0) *
             (1 + oppTeamsThatHaveData)) /
             3,
-          (teamMatchStatsBeforeThisMatch[
-            teamMatchStatsBeforeThisMatch.length - 1
-          ].oppTeams.reduce(
+          (matchStats[i][j].oppTeams.reduce(
             (sum, val) =>
-              matchStats[val]
+              matchStats[+val.substring(3)]
                 ? sum +
-                  matchStats[val].reduce((sum, val) => {
-                    if (val.comp === teamMatchStatsBeforeThisMatch[j].comp) {
+                  matchStats[+val.substring(3)].reduce((sum, val) => {
+                    if (val.comp === matchStats[i][j].comp) {
                       matchesInCompOpp++;
-                      return sum + val.oppStats[dataPoint];
+                      return sum + val.teamStats[dataPoint];
                     }
                     return sum;
                   }, 0) /
-                    matchStats[val].length
+                    matchStats[+val.substring(3)].length
                 : sum,
             0
           ) *
@@ -278,7 +274,6 @@ async function initializeDataset(dataPoint) {
       });
     }
   }
-  console.log(matchData[dataPoint].length, matchData[dataPoint][1]);
   console.log(`Training data initialized!`);
 }
 
@@ -321,64 +316,74 @@ async function trainData(dataPoint) {
   function avgError() {
     let sum = 0;
     for (let i = 0; i < matchData[dataPoint].length; i++) {
-      sum += Math.abs(prediction(i) - matchData[dataPoint][i].actual);
+      sum += Math.abs(prediction(i) - matchData[dataPoint][i].actual) ** 2;
     }
     return sum / matchData[dataPoint].length;
   }
 
   function updateWeights() {
-    for (let i = 0; i < matchData[dataPoint].length; i++) {
-      function errDerivitave(power, dataIndex) {
-        let chain1 = 2 * (prediction(i) - matchData[dataPoint][i].actual); // derivitave of error with respect to prediction
-        let chain2 = matchData[dataPoint][i].inputs[dataIndex] ** power; // derivative of prediction with respect to input
-        return chain1 * chain2;
-      }
-      for (let j = 0; j < matchData[dataPoint][i].inputs.length; j++) {
-        trainedNumbers[dataPoint].a[j] -= LEARNING_RATE3 * errDerivitave(3, j);
-        trainedNumbers[dataPoint].b[j] -= LEARNING_RATE2 * errDerivitave(2, j);
-        trainedNumbers[dataPoint].c[j] -= LEARNING_RATE1 * errDerivitave(1, j);
-      }
-      trainedNumbers[dataPoint].d += LEARNING_RATE0 * errDerivitave(0, 0);
+    function errDerivitave(i, power, dataIndex) {
+      let chain1 = 2 * (prediction(i) - matchData[dataPoint][i].actual); // derivitave of error with respect to prediction
+      let chain2 = matchData[dataPoint][i].inputs[dataIndex] ** power; // derivative of prediction with respect to input
+      return chain1 * chain2;
     }
-    // one iteration done! now print info
-    // number should go down
-    console.log(`Avg Error: ${avgError().toFixed(5)}`);
+    for (let i = 0; i < matchData[dataPoint].length; i++) {
+      for (let j = 0; j < matchData[dataPoint][i].inputs.length; j++) {
+        trainedNumbers[dataPoint].a[j] -=
+          LEARNING_RATE3 * errDerivitave(i, 3, j);
+        trainedNumbers[dataPoint].b[j] -=
+          LEARNING_RATE2 * errDerivitave(i, 2, j);
+        trainedNumbers[dataPoint].c[j] -=
+          LEARNING_RATE1 * errDerivitave(i, 1, j);
+      }
+      trainedNumbers[dataPoint].d += LEARNING_RATE0 * errDerivitave(i, 0, 0);
+    }
   }
 
   console.log(`Training data...`);
-
-  let lastError = avgError();
-  let error = 0;
-  console.log(lastError);
-  while (lastError - error < DONE_THRESH) {
+  var iters = 0;
+  let lastError = avgError() + DONE_THRESH + 1; // has to trigger first iteration, shows that my starting values sucked
+  while (lastError - avgError() > DONE_THRESH || iters < 5) {
+    iters++;
     lastError = avgError();
     updateWeights();
-    error = avgError();
-    if (lastError - error < DONE_THRESH) {
-      break;
-    }
+    // number should go down
+    AI_FUNCS.deleteLastConsoleLine();
+    console.log(`Error: ${avgError().toFixed(5)}`);
   }
 
   console.log(`Training completed!`);
   console.log(`Saving weights...`);
 
   // save trainedNumbers to a json file
-  let savedData = {};
-  savedData[dataPoint] = trainedNumbers;
-  await addToJsonFile("trainedNumbers.json", savedData);
+  await AI_FUNCS.writeToJsonFile("trainedNumbers.json", trainedNumbers);
 
   console.log(`Done training ${dataPoint}!`);
 }
 
+/**
+ * The main function that orchestrates the entire process of fetching, initializing, and training data.
+ *
+ * This asynchronous function performs the following steps:
+ * 1. Prompts the user for a year.
+ * 2. Fetches match data for the specified year.
+ * 3. Initializes and trains datasets for each data point defined in trainingPoints.
+ *
+ * @async
+ * @function main
+ * @returns {Promise<void>} A promise that resolves when all operations are complete.
+ */
 async function main() {
   console.log("Starting!");
-  const year = await getYearFromUser();
+  const year = await AI_FUNCS.getYearFromUser();
   await getMatchData(year);
-  for (let i = 0; i < subDataPoints.length; i++) {
-    await initializeDataset(subDataPoints[i]);
-    await trainData(subDataPoints[i]);
+  for (let i = 0; i < trainingPoints.length; i++) {
+    await initializeDataset(trainingPoints[i]);
+    await trainData(trainingPoints[i]);
   }
   console.log("Done!");
 }
 
 main();
+//somehow my stupidly inefficient code runs kinda fast
+//proof that js is better than python
