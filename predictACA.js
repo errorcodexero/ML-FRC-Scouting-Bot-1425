@@ -4,20 +4,22 @@ const axios = require("axios");
 
 const TBA_API_KEY = process.env.TBA_API_KEY;
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
-const teamMatchData = [];
+const teamMatchStats = [];
 const subDataPoints = [
   "autoAmpNotePoints",
   "autoSpeakerNotePoints",
   "autoLeavePoints",
   "teleopAmpNotePoints",
   "teleopSpeakerNotePoints",
-  "foulpoints",
-  "endgameHarmonyPoints",
-  "endgameNoteInTrapPoints",
-  "endgameOnStagePoints",
-  "endgameParkPoints",
+  "foulPoints",
+  "endGameHarmonyPoints",
+  "endGameNoteInTrapPoints",
+  "endGameOnStagePoints",
+  "endGameParkPoints",
   "endGameSpotLightBonusPoints",
 ];
+let fullTeamData;
+let trainedNumbers;
 
 const oppTeamMatchStats = [];
 for (let i = 0; i < 10000; i++) {
@@ -78,64 +80,74 @@ async function getTBAData(endpoint) {
   }
 }
 
-async function getTeamData(teamNumber) {
+async function getTeamData(teamNumber, oppTeams) {
   var teamKey = String(teamNumber);
   if (!teamKey.includes("frc")) {
     teamKey = "frc" + teamNumber;
   }
 
-  const teamData = await getTBAData(
-    `/team/${teamKey}/matches/${await askUserQuestion(
-      "What year do you want to predict for?"
-    )}`
+  const year = await askUserQuestion("What year do you want to predict for?");
+
+  fullTeamData = await getTBAData(`/team/${teamKey}/matches/${year}`);
+
+  fullTeamData = await fullTeamData.sort(
+    (a, b) => a.actual_time < b.actual_time
+  );
+
+  const teamData = await fullTeamData.filter(
+    (val) => val.actual_time < Date.now()
   );
 
   for (let i = 0; i < teamData.length; i++) {
     if (teamData[i].alliances.red.team_keys.includes(teamKey)) {
-      teamMatchData.push({
+      teamMatchStats.push({
         teamStats: teamData[i].score_breakdown.red,
         oppTeams: teamData[i].alliances.blue.team_keys,
         comp: teamData[i].key,
-        time: teamData[i].time,
+        time: teamData[i].actual_time,
       });
-      for (let j = 0; j < teamData[i].alliances.blue.team_keys.length; j++) {
-        oppTeamMatchStats[
-          +teamData[i].alliances.blue.team_keys[j].substring(3)
-        ].push({
-          teamStats: teamData[i].score_breakdown.blue,
-          comp: teamData[i].event_key,
-          time: teamData[i].time,
-        });
-      }
     } else {
-      teamMatchData.push({
+      teamMatchStats.push({
         teamStats: teamData[i].score_breakdown.blue,
-        oppStats: teamData[i].alliances.red.team_keys,
+        oppTeams: teamData[i].alliances.red.team_keys,
         comp: teamData[i].key,
-        time: teamData[i].time,
+        time: teamData[i].actual_time,
       });
-      for (let j = 0; j < teamData[i].alliances.red.team_keys.length; j++) {
-        oppTeamMatchStats[
-          +teamData[i].alliances.red.team_keys[j].substring(3)
-        ].push({
-          teamStats: teamData[i].score_breakdown.red,
-          comp: teamData[i].event_key,
-          time: teamData[i].time,
+    }
+  }
+
+  for (let i = 0; i < oppTeams.length; i++) {
+    let oppTeamData = await getTBAData(`/team/${teamKey}/matches/${year}`);
+
+    oppTeamData = await oppTeamData
+      .sort((a, b) => a.actual_time < b.actual_time)
+      .filter((val) => val.actual_time < Date.now());
+
+    for (let j = 0; j < oppTeamData.length; j++) {
+      if (oppTeamData[j].alliances.red.team_keys.includes(oppTeams[i])) {
+        oppTeamMatchStats[oppTeams[i]].push({
+          teamStats: oppTeamData[j].score_breakdown.red,
+          comp: oppTeamData[j].key,
+          time: oppTeamData[j].actual_time,
+        });
+      } else {
+        oppTeamMatchStats[oppTeams[i]].push({
+          teamStats: oppTeamData[j].score_breakdown.blue,
+          comp: oppTeamData[j].key,
+          time: oppTeamData[j].actual_time,
         });
       }
     }
   }
 }
 
-async function predictData(dataPoint) {
-  const trainedNumbers = await getDataFromFile("trainedNumbers.json");
-
+async function predictData(dataPoint, oppTeams) {
   if (!subDataPoints.includes(dataPoint)) {
     if (dataPoint.includes("auto")) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("auto")) {
-          ret += predictData(subDataPoints[i]);
+          ret += await predictData(subDataPoints[i], oppTeams);
         }
       }
       return ret;
@@ -143,7 +155,7 @@ async function predictData(dataPoint) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("teleop")) {
-          ret += predictData(subDataPoints[i]);
+          ret += await predictData(subDataPoints[i], oppTeams);
         }
       }
       return ret;
@@ -151,64 +163,118 @@ async function predictData(dataPoint) {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("endgame")) {
-          ret += predictData(subDataPoints[i]);
+          ret += await predictData(subDataPoints[i], oppTeams);
         }
       }
       return ret;
     } else {
       let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        ret += predictData(subDataPoints[i]);
+        ret += await predictData(subDataPoints[i], oppTeams);
       }
       return ret;
     }
   }
 
+  if (teamMatchStats.length == 0) {
+    console.log("No matches found!");
+    return `
+                                                                                                    \n
+                                                              ,@@@@@@@@@@@,                         \n
+                                                     @@@@@@@@@@@      @-   @@@@                     \n
+                                                 @@@@=           @  @@ +@    =@@@                   \n
+                                              @@@      @@-      @@@@* @ @@ .      @                 \n
+                                           @@+  :    @@  @@@@%+@:@@@@ @:   @@@@@@@@@@               \n
+                                       @@@%  .:.:. @@  @:           :@  @@@          @              \n
+                                    @@@-  ::::.--:   @.  .:-.   +@@@@.@@      @@@@@   @             \n
+                                @@@+  .::......  ..@   -:  =#@@@      @      @@@@@@@   @            \n
+                            @@@#. ::::::.::::.::. -.    @@@           @     @@@@@  @.  @            \n
+                         @@@.  ---:.:....::::..: # @@@@@    @@@@@@    @@    @@@@@ @@@@ @            \n
+                     @@@=   .:::......:::.:....- % @      .@@@@@@@   @@  @@@@@@@   @@@@             \n
+                  @@@:  :::::....:.:::::::      . @ @@    @@@   @@@ @@@@  @@@@+    @@@ @            \n
+                @=-  ::...:..:::::.::::::-. @   .  @  @@@@@@@@@@@@@@    @@@    *@@%     @           \n
+              @@= ..   ..:..:............:.  @@+    @@@        @@    -:   @@@@+     ::  @           \n
+            *@- .: = @@.       __          :    @@@@@@@@@@@@.:    .:.:::+   @  = :.   .@            \n
+            @  :=  @     @@+.#+-*++%%@@@@@=,__               ...:::::::::.:       _,@@@             \n
+           @- :-  @   @@                   -*@@@@@@@@=,__                   _,#@@@-   #@            \n
+           @  :: :=  @  :--:*@@@@@@@-,_                -@@@@@@@@@@@@@@@@@@@@@= :  .  -@@            \n
+            @.:  @.  @  -:::         --#%@@@@@@*.:                          .      @@               \n
+             @ . @ . @=               . .        :@@@@@@@@@@@@@#,___  .   .__,@@@@@@                \n
+             @     :   @@@@@@@@@@@@@@@@:+,__ .     .            -==**@@@@++=       @                \n
+            +@ @ :-..:                  .  @@@@@@*+-:,___                ::= .#@@@                  \n
+            @   #.  .:.:.:::............:::       .  :*%@@@@@@@@@@@@@@@@@@@@@@@                     \n
+           @+:@   @#   - :..:::::::::::::...:---:::::.             -@@@                             \n
+           @::+*=@@ .@    ..:::..::::::::::::::...::.:..     #@@@@@                                 \n
+           @:===-:+= @@ @=,_                     __.,--:@@@@                                        \n
+           @:=======-:.:-:%@@@@@%=:--=#@@@@@@%%@%+          @@@@@                                   \n
+           @:============-=    .-*#*#%***%@@@@@@@@@@@@@@@*%*--+-#@@@                                \n
+           @:======================-=----:...        .:-==========.%@@                              \n
+           @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                            \n
+           +                                                            @                           \n
+`;
+    //sorry
+    //i had fun tho
+  }
+  let matchesInComp = teamMatchStats.reduce((sum, val) => {
+    if (val.comp == teamMatchStats[teamMatchStats.length - 1].comp) {
+      return sum + 1;
+    }
+    return sum;
+  }, 0);
+  if (matchesInComp === 0) {
+    console.log(
+      "No matches found in the current competition!\n ERROR: this really shouldnt happen by the way i wrote the code, probably big bug, line 187"
+    );
+    return `womp womp`;
+  }
+
+  let oppTeamsThatHaveData = 3;
+
   var inputs = [
-    teamMatchData.reduce((sum, val) => sum + val.teamStats[dataPoint], 0) /
-      teamMatchData.length,
-    teamMatchData.reduce((sum, val) => {
-      if (val.comp === teamMatchData[j].comp) {
+    teamMatchStats.reduce((sum, val) => sum + val.teamStats[dataPoint], 0) /
+      teamMatchStats.length,
+    teamMatchStats.reduce((sum, val) => {
+      if (val.comp === teamMatchStats[teamMatchStats.length - 1].comp) {
         return sum + val.teamStats[dataPoint];
       }
       return sum;
     }, 0) / matchesInComp,
-    teamMatchData
+    teamMatchStats
       .slice(-3)
       .reduce(
         (last, val) =>
           last > val.teamStats[dataPoint] ? last : val.teamStats[dataPoint],
         0
       ) / 3,
-    teamMatchData[teamMatchData.length - 1].teamStats[dataPoint],
-    (teamMatchData[j].oppTeams.reduce((sum, val) => {
-      if (!oppTeamMatchStats[+val.substring(3)]) {
+    teamMatchStats[teamMatchStats.length - 1].teamStats[dataPoint],
+    (oppTeams.reduce((sum, val) => {
+      if (!oppTeamMatchStats[val] || val == 0) {
         oppTeamsThatHaveData--;
         return sum;
       }
       return (
         sum +
-        oppTeamMatchStats[+val.substring(3)].reduce(
+        oppTeamMatchStats[+val].reduce(
           (sum, val) => sum + val.teamStats[dataPoint],
           0
         ) /
-          oppTeamMatchStats[+val.substring(3)].length
+          oppTeamMatchStats[+val].length
       );
     }, 0) *
       (1 + oppTeamsThatHaveData)) /
       3,
-    (teamMatchData[j].oppTeams.reduce(
+    (oppTeams.reduce(
       (sum, val) =>
-        oppTeamMatchStats[+val.substring(3)]
+        oppTeamMatchStats[+val] && val != 0
           ? sum +
-            oppTeamMatchStats[+val.substring(3)].reduce((sum, val) => {
-              if (val.comp === teamMatchData[j].comp) {
+            oppTeamMatchStats[+val].reduce((sum, val) => {
+              if (val.comp === teamMatchStats[j].comp) {
                 matchesInCompOpp++;
                 return sum + val.teamStats[dataPoint];
               }
               return sum;
             }, 0) /
-              oppTeamMatchStats[+val.substring(3)].length
+              oppTeamMatchStats[+val].length
           : sum,
       0
     ) *
@@ -231,13 +297,27 @@ async function predictData(dataPoint) {
 }
 
 async function main() {
+  trainedNumbers = await getDataFromFile("trainedNumbers.json");
   const teamNumber = await askUserQuestion("Enter your team number: ");
+  const oppTeams = [
+    await askUserQuestion("Enter opposing team 1 (0 to skip): "),
+    await askUserQuestion("Enter opposing team 2:"),
+    await askUserQuestion("Enter opposing team 3:"),
+  ];
+  for (let i = 0; i < oppTeams.length; i++) {
+    oppTeams[i] = +oppTeams[i];
+    if (!Number.isInteger(oppTeams[i]) || oppTeams[i] < 1) {
+      oppTeams[i] = 0;
+    }
+  }
+
   const dataPoint = await askUserQuestion("Enter the data point to predict: ");
 
-  await getTeamData(teamNumber);
-  const prediction = await predictData(dataPoint);
+  await getTeamData(teamNumber, oppTeams);
 
-  console.log(`Predicted ${dataPoint} for team ${teamNumber}: ${prediction}`);
+  let pred = await predictData(dataPoint, oppTeams);
+
+  console.log(`Predicted ${dataPoint} for team ${teamNumber}: ${pred}`);
 }
 
 main();

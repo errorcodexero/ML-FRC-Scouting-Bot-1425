@@ -161,6 +161,12 @@ async function getMatchData(year) {
   }
   for (let i = 0; i < matches.length; i++) {
     for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++) {
+      if (
+        matchStats[+matches[i].alliances.red.team_keys[j].substring(3)] ===
+        undefined
+      ) {
+        matchStats[+matches[i].alliances.red.team_keys[j].substring(3)] = [];
+      }
       matchStats[+matches[i].alliances.red.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.red,
         oppTeams: matches[i].alliances.blue.team_keys,
@@ -169,6 +175,12 @@ async function getMatchData(year) {
       });
     }
     for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++) {
+      if (
+        matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)] ===
+        undefined
+      ) {
+        matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)] = [];
+      }
       matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.blue,
         oppTeams: matches[i].alliances.red.team_keys,
@@ -289,7 +301,7 @@ async function initializeDataset(dataPoint) {
  * @returns {Promise<void>} A promise that resolves when the training is complete and weights are saved.
  */
 async function trainData(dataPoint) {
-  console.log(`Training started!`);
+  console.log(`Training started for ${dataPoint}!`);
   trainedNumbers[dataPoint] = {
     a: [0, 0, 0, 0, 0, 0],
     b: [0, 0, 0, 0, 0, 0],
