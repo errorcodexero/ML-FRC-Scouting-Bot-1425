@@ -112,6 +112,9 @@ async function getTeamData(teamNumber, oppTeams) {
   );
 
   for (let i = 0; i < teamData.length; i++) {
+    if (!teamData[i].score_breakdown) {
+      continue;
+    }
     if (teamData[i].alliances.red.team_keys.includes(teamKey)) {
       teamMatchStats.push({
         teamStats: teamData[i].score_breakdown.red,
@@ -137,6 +140,9 @@ async function getTeamData(teamNumber, oppTeams) {
       .filter((val) => val.actual_time < Date.now());
 
     for (let j = 0; j < oppTeamData.length; j++) {
+      if (!oppTeamData[j].score_breakdown) {
+        continue;
+      }
       if (oppTeamData[j].alliances.red.team_keys.includes(oppTeams[i])) {
         oppTeamMatchStats[oppTeams[i]].push({
           teamStats: oppTeamData[j].score_breakdown.red,
@@ -154,39 +160,40 @@ async function getTeamData(teamNumber, oppTeams) {
   }
 }
 
-async function predictData(dataPoint, oppTeams) {
+async function predictData(dataPoint, teamNumber, oppTeams) {
   if (!subDataPoints.includes(dataPoint)) {
+    let ret = 0;
     if (dataPoint.includes("auto")) {
-      let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].includes("auto")) {
-          ret += await predictData(subDataPoints[i], oppTeams);
+        if (subDataPoints[i].includes("auto") && typeof ret == "number") {
+          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
         }
       }
-      return ret;
     } else if (dataPoint.includes("teleop")) {
-      let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].includes("teleop")) {
-          ret += await predictData(subDataPoints[i], oppTeams);
+        if (subDataPoints[i].includes("teleop") && typeof ret == "number") {
+          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
         }
       }
-      return ret;
     } else if (dataPoint.includes("endgame")) {
-      let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (subDataPoints[i].includes("endgame")) {
-          ret += await predictData(subDataPoints[i], oppTeams);
+        if (subDataPoints[i].includes("endgame") && typeof ret == "number") {
+          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
         }
       }
-      return ret;
     } else {
-      let ret = 0;
       for (let i = 0; i < subDataPoints.length; i++) {
-        ret += await predictData(subDataPoints[i], oppTeams);
+        if (typeof ret == "number") {
+          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
+        }
       }
-      return ret;
     }
+    console.log(
+      `Predicted ${dataPoint} for team ${teamNumber}: ${prediction(
+        dataPoint
+      ).toFixed(5)}`
+    );
+    return ret;
   }
 
   if (teamMatchStats.length == 0) {
@@ -306,14 +313,20 @@ async function predictData(dataPoint, oppTeams) {
     return ret;
   }
 
+  console.log(
+    `Predicted ${dataPoint} for team ${teamNumber}: ${prediction(
+      dataPoint
+    ).toFixed(5)}`
+  );
+
   return prediction(dataPoint);
 }
 
 async function main() {
   trainedNumbers = await getDataFromFile("trainedNumbers.json");
-  const teamNumber = await askUserQuestion("Enter your team number: ");
+  const teamNumber = await askUserQuestion("Enter your team number:");
   const oppTeams = [
-    await askUserQuestion("Enter opposing team 1 (0 to skip): "),
+    await askUserQuestion("Enter opposing team 1 (0 to skip):"),
     await askUserQuestion("Enter opposing team 2:"),
     await askUserQuestion("Enter opposing team 3:"),
   ];
@@ -324,13 +337,10 @@ async function main() {
     }
   }
 
-  const dataPoint = await askUserQuestion("Enter the data point to predict: ");
+  const dataPoint = await askUserQuestion("Enter the data point to predict:");
 
   await getTeamData(teamNumber, oppTeams);
-
-  let pred = await predictData(dataPoint, oppTeams);
-
-  console.log(`Predicted ${dataPoint} for team ${teamNumber}: ${pred}`);
+  await predictData(dataPoint, teamNumber, oppTeams);
 }
 
 main();

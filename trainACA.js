@@ -9,7 +9,7 @@ const LEARNING_RATE0 = 0.00001;
 const LEARNING_RATE1 = 0.000001;
 const LEARNING_RATE2 = 0.000000001;
 const LEARNING_RATE3 = 0.00000000000001;
-const DONE_THRESH = 0.0001;
+const DONE_THRESH = 0.1;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
@@ -150,8 +150,10 @@ const AI_FUNCS = {
 async function getMatchData(year) {
   events = await AI_FUNCS.getTBAData(`/events/${year}/keys`);
   let matches = [];
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < events.length; i++) {
     let data = await AI_FUNCS.getTBAData(`/event/${events[i]}/matches`);
+    AI_FUNCS.deleteLastConsoleLine();
+    console.log(`${((i * 100) / events.length).toFixed(1)}% data fetched...`);
     matches.push(...data);
   }
   // need to get the data for each match and put it into matchStats
@@ -163,9 +165,10 @@ async function getMatchData(year) {
     for (let j = 0; j < matches[i].alliances.red.team_keys.length; j++) {
       if (
         matchStats[+matches[i].alliances.red.team_keys[j].substring(3)] ===
-        undefined
+          undefined ||
+        !matches[i].score_breakdown
       ) {
-        matchStats[+matches[i].alliances.red.team_keys[j].substring(3)] = [];
+        continue;
       }
       matchStats[+matches[i].alliances.red.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.red,
@@ -177,9 +180,10 @@ async function getMatchData(year) {
     for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++) {
       if (
         matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)] ===
-        undefined
+          undefined ||
+        !matches[i].score_breakdown
       ) {
-        matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)] = [];
+        continue;
       }
       matchStats[+matches[i].alliances.blue.team_keys[j].substring(3)].push({
         teamStats: matches[i].score_breakdown.blue,
@@ -189,6 +193,7 @@ async function getMatchData(year) {
       });
     }
   }
+  console.log(`Training data fetched, with ${matches.length} data points!`);
 }
 
 /**
@@ -286,7 +291,6 @@ async function initializeDataset(dataPoint) {
       });
     }
   }
-  console.log(`Training data initialized!`);
 }
 
 /**
@@ -355,7 +359,7 @@ async function trainData(dataPoint) {
   console.log(`Training data...`);
   var iters = 0;
   let lastError = avgError() + DONE_THRESH + 1; // has to trigger first iteration, shows that my starting values sucked
-  while (lastError - avgError() > DONE_THRESH || iters < 5) {
+  while (lastError - avgError() > DONE_THRESH || iters < 2) {
     iters++;
     lastError = avgError();
     updateWeights();
