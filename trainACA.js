@@ -9,7 +9,7 @@ const LEARNING_RATE0 = 0.00001;
 const LEARNING_RATE1 = 0.000001;
 const LEARNING_RATE2 = 0.000000001;
 const LEARNING_RATE3 = 0.00000000000001;
-const DONE_THRESH = 0.0002;
+const DONE_THRESH = 0.0001;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
@@ -361,7 +361,7 @@ async function trainData(dataPoint) {
     updateWeights();
     // number should go down
     AI_FUNCS.deleteLastConsoleLine();
-    console.log(`Error: ${avgError().toFixed(5)}`);
+    console.log(`Error: ${Math.sqrt(avgError()).toFixed(5)}`);
   }
 
   console.log(`Training completed!`);

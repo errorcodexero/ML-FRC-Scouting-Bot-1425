@@ -80,6 +80,19 @@ async function getTBAData(endpoint) {
   }
 }
 
+/**
+ * Fetches and processes match data for a given team and their opponents.
+ *
+ * This function retrieves match data for the specified team and their opponents
+ * from The Blue Alliance API for a given year. It then sorts and filters the data,
+ * and populates the `teamMatchStats` and `oppTeamMatchStats` arrays with the
+ * relevant information.
+ *
+ * @param {number} teamNumber - The number of the team for which to fetch match data.
+ * @param {Array<number>} oppTeams - An array of the numbers of the opponent teams.
+ * @returns {Promise<void>} - A promise that resolves when the data fetching and processing is complete.
+ * @throws {Error} - If there's an error fetching data from the API, the error is logged and re-thrown.
+ */
 async function getTeamData(teamNumber, oppTeams) {
   var teamKey = String(teamNumber);
   if (!teamKey.includes("frc")) {
