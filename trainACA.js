@@ -83,7 +83,7 @@ const AI_FUNCS = {
   /**
    * Asynchronously adds new data to a JSON file, creating the file if it doesn't exist.
    *
-   * This function reads an existing JSON file (if it exists), merges new data with the existing data,
+   * This function reads an existing JSON file (if it exists),
    * and writes the updated data back to the file. If the file doesn't exist, it creates a new file
    * with the provided data.
    *
@@ -92,11 +92,39 @@ const AI_FUNCS = {
    * @param {Object} newData - An object containing the new data to be added to the JSON file.
    * @returns {Promise<void>} A promise that resolves when the operation is complete.
    */
-  writeToJsonFile: async function (filename, newData) {
+  writeToFile: async function (filename, newData) {
     let data = newData;
 
     // Write updated data back to file
     fs.writeFileSync(filename, JSON.stringify(data, null, 2));
+  },
+
+  /**
+   * Asynchronously reads and parses JSON data from a file.
+   *
+   * This function attempts to read the contents of a file specified by the filename,
+   * parse it as JSON, and return the resulting JavaScript object. If an error occurs
+   * during file reading or JSON parsing, it logs an appropriate error message and
+   * throws the error.
+   *
+   * @async
+   * @param {string} filename - The name or path of the file to read.
+   * @returns {Promise<Object>} A promise that resolves with the parsed JSON data as a JavaScript object.
+   * @throws {Error} If the file is not found or cannot be read, or if the content cannot be parsed as JSON.
+   */
+  readFromFile: async function (filename) {
+    try {
+      const data = await fs.promises.readFile(filename, "utf8");
+      return JSON.parse(data);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        console.log(`File not found: ${filename}. Returning empty array.`);
+        return [];
+      } else {
+        console.error(`Error reading file ${filename}: ${error.message}`);
+        throw error;
+      }
+    }
   },
 
   /**
@@ -148,14 +176,23 @@ const AI_FUNCS = {
  * @throws {Error} If there's an error fetching or processing the data.
  */
 async function getMatchData(year) {
-  events = await AI_FUNCS.getTBAData(`/events/${year}/keys`);
-  let matches = [];
+  events = await AI_FUNCS.getTBAData(`/events/${year}/simple`);
+  eventsGotten = await AI_FUNCS.readFromFile(`events${year}.json`);
+  await AI_FUNCS.writeToFile(`events${year}.json`, events);
+
+  let matches = await AI_FUNCS.readFromFile(`matches${year}.json`);
+  //filler for delete
+  console.log("");
   for (let i = 0; i < events.length; i++) {
-    let data = await AI_FUNCS.getTBAData(`/event/${events[i]}/matches`);
-    AI_FUNCS.deleteLastConsoleLine();
-    console.log(`${((i * 100) / events.length).toFixed(1)}% data fetched...`);
-    matches.push(...data);
+    if (Date.parse(events[i].end_date) > Date.now()) {
+      let data = await AI_FUNCS.getTBAData(`/event/${events[i].key}/matches`);
+      AI_FUNCS.deleteLastConsoleLine();
+      console.log(`${((i * 100) / events.length).toFixed(1)}% data fetched...`);
+      matches.push(...data);
+    }
   }
+
+  await AI_FUNCS.writeToFile(`matches${year}.json`, matches);
   // need to get the data for each match and put it into matchStats
   // i think this was a reminder but imma leave it anyway
   for (let i = 0; i < 10000; i++) {
@@ -166,7 +203,8 @@ async function getMatchData(year) {
       if (
         matchStats[+matches[i].alliances.red.team_keys[j].substring(3)] ===
           undefined ||
-        !matches[i].score_breakdown
+        !matches[i].score_breakdown ||
+        matches[i].score_breakdown
       ) {
         continue;
       }
@@ -174,7 +212,7 @@ async function getMatchData(year) {
         teamStats: matches[i].score_breakdown.red,
         oppTeams: matches[i].alliances.blue.team_keys,
         comp: matches[i].key,
-        time: matches[i].time,
+        time: matches[i].actual_time,
       });
     }
     for (let j = 0; j < matches[i].alliances.blue.team_keys.length; j++) {
@@ -189,9 +227,12 @@ async function getMatchData(year) {
         teamStats: matches[i].score_breakdown.blue,
         oppTeams: matches[i].alliances.red.team_keys,
         comp: matches[i].event_key,
-        time: matches[i].time,
+        time: matches[i].actual_time,
       });
     }
+  }
+  for (let i = 0; i < matchStats.length; i++) {
+    matchStats[i].sort((a, b) => (a.time > b.time ? 1 : -1));
   }
   console.log(`Training data fetched, with ${matches.length} data points!`);
 }
@@ -210,24 +251,62 @@ async function getMatchData(year) {
 async function initializeDataset(dataPoint) {
   console.log(`Training data initializing...`);
   matchData[dataPoint] = [];
-  let oppTeamsThatHaveData = 3;
   for (let i = 0; i < matchStats.length; i++) {
-    for (let j = 0; j < matchStats[i].length; j++) {
+    var validMatches = matchStats[i].filter((val) => {
+      return (
+        !isNaN(val.teamStats[dataPoint]) && val.oppTeams && val.time && val.comp
+      );
+    });
+    for (let j = 0; j < validMatches.length; j++) {
       let matchesInCompOpp = 0;
-      let teamMatchStatsBeforeThisMatch = matchStats[i]
-        .filter((val) => val.time < matchStats[i][j].time)
-        .sort((a, b) => a.time < b.time);
+      let teamMatchStatsBeforeThisMatch = validMatches.filter(
+        (val) => val.time < validMatches[j].time
+      );
       if (teamMatchStatsBeforeThisMatch.length == 0) {
         continue;
       }
       let matchesInComp = teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
-        if (val.comp == matchStats[i][j].comp) {
+        if (isNaN(val.teamStats[dataPoint])) {
+          console.log(val[j] + "uh oh");
+        }
+        if (val.comp == validMatches[j].comp) {
           return sum + 1;
         }
         return sum;
       }, 0);
-      if (matchesInComp === 0) {
+      //console.log(validMatches[j].time);
+      if (matchesInComp == 0) {
         continue;
+      }
+
+      let oppTeamsThatHaveData = validMatches[j].oppTeams.reduce((sum, val) => {
+        if (
+          !matchStats[+val.substring(3)] ||
+          matchStats[+val.substring(3)].length <= 0
+        ) {
+          return sum;
+        }
+        return sum + 1;
+      }, 0);
+      if (oppTeamsThatHaveData < 0) {
+        continue;
+      }
+
+      if (
+        isNaN(validMatches[j].teamStats[dataPoint]) ||
+        !validMatches[j].oppTeams ||
+        !validMatches[j].time ||
+        !validMatches[j].comp
+      ) {
+        console.log(validMatches[j]);
+        continue;
+      }
+
+      if (
+        teamMatchStatsBeforeThisMatch[teamMatchStatsBeforeThisMatch.length - 1]
+          .time > validMatches[j].time
+      ) {
+        console.log("uh oh 3");
       }
       matchData[dataPoint].push({
         inputs: [
@@ -236,45 +315,53 @@ async function initializeDataset(dataPoint) {
             0
           ) / teamMatchStatsBeforeThisMatch.length,
           teamMatchStatsBeforeThisMatch.reduce((sum, val) => {
-            if (val.comp === matchStats[i][j].comp) {
+            if (val.comp === validMatches[j].comp) {
               return sum + val.teamStats[dataPoint];
             }
             return sum;
           }, 0) / matchesInComp,
-          teamMatchStatsBeforeThisMatch
-            .slice(-3)
-            .reduce(
-              (last, val) =>
-                last > val.teamStats[dataPoint]
-                  ? last
-                  : val.teamStats[dataPoint],
-              0
-            ) / 3,
+          teamMatchStatsBeforeThisMatch.slice(-3).reduce((last, val) => {
+            if (!val.teamStats[dataPoint]) {
+              return last;
+            }
+            return last > val.teamStats[dataPoint]
+              ? last
+              : val.teamStats[dataPoint];
+          }, 0) / 3,
           teamMatchStatsBeforeThisMatch[
             teamMatchStatsBeforeThisMatch.length - 1
           ].teamStats[dataPoint],
-          (matchStats[i][j].oppTeams.reduce((sum, val) => {
-            if (!matchStats[+val.substring(3)]) {
+          (validMatches[j].oppTeams.reduce((sum, val) => {
+            if (
+              !matchStats[+val.substring(3)] ||
+              matchStats[+val.substring(3)].length <= 0
+            ) {
               oppTeamsThatHaveData--;
               return sum;
             }
-            return (
-              sum +
-              matchStats[+val.substring(3)].reduce(
-                (sum, val) => sum + val.teamStats[dataPoint],
-                0
-              ) /
-                matchStats[+val.substring(3)].length
-            );
+            function doIt() {
+              return (
+                sum +
+                matchStats[+val.substring(3)].reduce(
+                  (sum, val) => sum + val.teamStats[dataPoint],
+                  0
+                ) /
+                  matchStats[+val.substring(3)].length
+              );
+            }
+            if (isNaN(doIt())) {
+              console.log(doIt());
+            }
+            return doIt();
           }, 0) *
             (1 + oppTeamsThatHaveData)) /
             3,
-          (matchStats[i][j].oppTeams.reduce(
+          (validMatches[j].oppTeams.reduce(
             (sum, val) =>
               matchStats[+val.substring(3)]
                 ? sum +
                   matchStats[+val.substring(3)].reduce((sum, val) => {
-                    if (val.comp === matchStats[i][j].comp) {
+                    if (val.comp === validMatches[j].comp) {
                       matchesInCompOpp++;
                       return sum + val.teamStats[dataPoint];
                     }
@@ -284,11 +371,52 @@ async function initializeDataset(dataPoint) {
                 : sum,
             0
           ) *
-            (1 + oppTeamsThatHaveData)) /
+            oppTeamsThatHaveData) /
             3,
         ],
-        actual: matchStats[i][j].teamStats[dataPoint],
+        actual: validMatches[j].teamStats[dataPoint],
       });
+      if (matchData[dataPoint].length < 1) {
+        continue;
+      }
+      for (
+        let k = 0;
+        k < matchData[dataPoint][matchData[dataPoint].length - 1].inputs.length;
+        k++
+      ) {
+        if (
+          isNaN(matchData[dataPoint][matchData[dataPoint].length - 1].inputs[k])
+        ) {
+          // console.log(
+          //   matchData[dataPoint][matchData[dataPoint].length - 1].inputs[k] +
+          //     "uh oh" +
+          //     k
+          //);
+          matchData[dataPoint].pop();
+          break;
+        }
+      }
+    }
+  }
+}
+
+function problemCheck() {
+  for (let i = 0; i < matchData.length; i++) {
+    if (matchData[i].length < 1) {
+      continue;
+    }
+    for (let j = 0; j < matchData[i].length; j++) {
+      for (
+        let k = 0;
+        k < matchData[i][matchData[i].length - 1].inputs.length;
+        k++
+      ) {
+        if (isNaN(matchData[i][j].inputs[k])) {
+          console.log(matchData[i][j].inputs[k] + "uh oh 5");
+          matchData[i].pop();
+          break;
+        }
+      }
     }
   }
 }
@@ -304,7 +432,7 @@ async function initializeDataset(dataPoint) {
  * @param {string} dataPoint - The specific data point (e.g., "autoAmpNotePoints") to train the model on.
  * @returns {Promise<void>} A promise that resolves when the training is complete and weights are saved.
  */
-async function trainData(dataPoint) {
+async function trainData(dataPoint, year) {
   console.log(`Training started for ${dataPoint}!`);
   trainedNumbers[dataPoint] = {
     a: [0, 0, 0, 0, 0, 0],
@@ -316,6 +444,11 @@ async function trainData(dataPoint) {
   function prediction(index) {
     let ret = 0;
     for (let i = 0; i < matchData[dataPoint][index].inputs.length; i++) {
+      if (isNaN(matchData[dataPoint][index].inputs[i])) {
+        deleteLastConsoleLine();
+        console.log(matchData[dataPoint][index] + "bedone 2");
+        continue;
+      }
       ret +=
         trainedNumbers[dataPoint].a[i] *
         matchData[dataPoint][index].inputs[i] ** 3;
@@ -332,6 +465,10 @@ async function trainData(dataPoint) {
   function avgError() {
     let sum = 0;
     for (let i = 0; i < matchData[dataPoint].length; i++) {
+      if (isNaN(matchData[dataPoint][i].actual)) {
+        console.log(matchData[dataPoint][i] + "bedone 1");
+        continue;
+      }
       sum += Math.abs(prediction(i) - matchData[dataPoint][i].actual) ** 2;
     }
     return sum / matchData[dataPoint].length;
@@ -372,7 +509,7 @@ async function trainData(dataPoint) {
   console.log(`Saving weights...`);
 
   // save trainedNumbers to a json file
-  await AI_FUNCS.writeToJsonFile("trainedNumbers.json", trainedNumbers);
+  await AI_FUNCS.writeToFile(`trainedNumbers${year}.json`, trainedNumbers);
 
   console.log(`Done training ${dataPoint}!`);
 }
@@ -395,7 +532,8 @@ async function main() {
   await getMatchData(year);
   for (let i = 0; i < trainingPoints.length; i++) {
     await initializeDataset(trainingPoints[i]);
-    await trainData(trainingPoints[i]);
+    await problemCheck();
+    await trainData(trainingPoints[i], year);
   }
   console.log("Done!");
 }

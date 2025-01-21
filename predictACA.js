@@ -26,6 +26,19 @@ for (let i = 0; i < 10000; i++) {
   oppTeamMatchStats.push([]);
 }
 
+/**
+ * Asynchronously reads and parses JSON data from a file.
+ *
+ * This function attempts to read the contents of a file specified by the filename,
+ * parse it as JSON, and return the resulting JavaScript object. If an error occurs
+ * during file reading or JSON parsing, it logs an appropriate error message and
+ * throws the error.
+ *
+ * @async
+ * @param {string} filename - The name or path of the file to read.
+ * @returns {Promise<Object>} A promise that resolves with the parsed JSON data as a JavaScript object.
+ * @throws {Error} If the file is not found or cannot be read, or if the content cannot be parsed as JSON.
+ */
 async function getDataFromFile(filename) {
   try {
     const data = await fs.readFile(filename, "utf8");
@@ -40,6 +53,16 @@ async function getDataFromFile(filename) {
   }
 }
 
+/**
+ * Prompts the user with a question and returns their answer asynchronously.
+ *
+ * This function creates a readline interface to ask the user a question via
+ * the command line. It returns a Promise that resolves with the user's trimmed answer.
+ *
+ * @async
+ * @param {string} question - The question to ask the user.
+ * @returns {Promise<string>} A promise that resolves with the user's trimmed answer.
+ */
 async function askUserQuestion(question) {
   const rl = readline.createInterface({
     input: process.stdin,

@@ -1,0 +1,56 @@
+{
+  "autoAmpNotePoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  },
+  "autoSpeakerNotePoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  }
+}

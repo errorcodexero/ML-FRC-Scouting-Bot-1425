@@ -160,5 +160,140 @@
       null
     ],
     "d": null
+  },
+  "endGameHarmonyPoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  },
+  "endGameNoteInTrapPoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  },
+  "endGameOnStagePoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  },
+  "endGameParkPoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
+  },
+  "endGameSpotLightBonusPoints": {
+    "a": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "b": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "c": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "d": null
   }
 }
