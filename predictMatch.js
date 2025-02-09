@@ -193,37 +193,67 @@ async function getTeamData(teamNumber, oppTeams, year) {
       }
     }
   }
+  return [teamMatchStats, oppTeamOppMatchStats];
 }
 
-async function predictData(dataPoint, teamNumber, oppTeams) {
+async function predictData(
+  dataPoint,
+  teamNumber,
+  oppTeams,
+  teamMatchStats,
+  oppTeamOppMatchStats
+) {
   if (!subDataPoints.includes(dataPoint)) {
     let ret = 0;
     if (dataPoint.includes("auto")) {
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("auto") && typeof ret == "number") {
-          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
+          ret += await predictData(
+            subDataPoints[i],
+            teamNumber,
+            oppTeams,
+            teamMatchStats,
+            oppTeamOppMatchStats
+          );
         }
       }
     } else if (dataPoint.includes("teleop")) {
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("teleop") && typeof ret == "number") {
-          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
+          ret += await predictData(
+            subDataPoints[i],
+            teamNumber,
+            oppTeams,
+            teamMatchStats,
+            oppTeamOppMatchStats
+          );
         }
       }
     } else if (dataPoint.includes("endgame")) {
       for (let i = 0; i < subDataPoints.length; i++) {
         if (subDataPoints[i].includes("endgame") && typeof ret == "number") {
-          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
+          ret += await predictData(
+            subDataPoints[i],
+            teamNumber,
+            oppTeams,
+            teamMatchStats,
+            oppTeamOppMatchStats
+          );
         }
       }
     } else {
       for (let i = 0; i < subDataPoints.length; i++) {
         if (typeof ret == "number") {
-          ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
+          ret += await predictData(
+            subDataPoints[i],
+            teamNumber,
+            oppTeams,
+            teamMatchStats,
+            oppTeamOppMatchStats
+          );
         }
       }
     }
-    console.log(`Predicted ${dataPoint} for team ${teamNumber}: ${ret}`);
     return ret;
   }
 
@@ -272,6 +302,16 @@ async function predictData(dataPoint, teamNumber, oppTeams) {
     }
     return sum;
   }, 0);
+
+  var contd = false;
+
+  for (let i = 0; i < teamMatchStats.length; i++) {
+    if (isNaN(teamMatchStats[i].teamStats[dataPoint])) {
+      contd = true;
+      break;
+    }
+  }
+
   var matchesInCompOpp = 0;
   if (matchesInComp === 0) {
     console.log(
@@ -364,67 +404,85 @@ async function predictData(dataPoint, teamNumber, oppTeams) {
     return ret;
   }
 
-  console.log(
-    `Predicted ${dataPoint} for team ${teamNumber}: ${prediction(
-      dataPoint
-    ).toFixed(5)}`
-  );
-
   return prediction(dataPoint);
 }
 
 async function main() {
-  const teamNumber = await askUserQuestion("Enter your team number:");
-  if (teamNumber == "test") {
-    await testACA();
-    return;
-  }
-  const oppTeams = [
-    await askUserQuestion("Enter opposing team 1 (enter to skip):"),
-    await askUserQuestion("Enter opposing team 2:"),
-    await askUserQuestion("Enter opposing team 3:"),
-  ];
-  for (let i = 0; i < oppTeams.length; i++) {
-    oppTeams[i] = +oppTeams[i];
-    if (!Number.isInteger(oppTeams[i]) || oppTeams[i] < 1) {
-      oppTeams[i] = 0;
-    }
-  }
+  const red1 = await askUserQuestion("Enter red 1:");
+  const red2 = await askUserQuestion("Enter red 2:");
+  const red3 = await askUserQuestion("Enter red 3:");
+  const blue1 = await askUserQuestion("Enter blue 1:");
+  const blue2 = await askUserQuestion("Enter blue 2:");
+  const blue3 = await askUserQuestion("Enter blue 3:");
 
   const year = await askUserQuestion("Enter the year to predict for:");
-  const dataPoint = await askUserQuestion("Enter the data point to predict:");
+  const dataPoint = "match";
 
   trainedNumbers = await getDataFromFile(`trainedNumbers${year}.json`);
-  const teamData = await getTeamData(teamNumber, oppTeams, year);
-  await predictData(dataPoint, teamNumber, oppTeams, teamData);
+
+  const redTeams = [red1, red2, red3];
+  const blueTeams = [blue1, blue2, blue3];
+
+  const [red1Data, oppRed1Data] = await getTeamData(red1, blueTeams, year);
+  const [red2Data, oppRed2Data] = await getTeamData(red2, blueTeams, year);
+  const [red3Data, oppRed3Data] = await getTeamData(red3, blueTeams, year);
+  const red1pred = await predictData(
+    dataPoint,
+    red1,
+    blueTeams,
+    red1Data,
+    oppRed1Data
+  );
+  const red2pred = await predictData(
+    dataPoint,
+    red2,
+    blueTeams,
+    red2Data,
+    oppRed2Data
+  );
+  const red3pred = await predictData(
+    dataPoint,
+    red3,
+    blueTeams,
+    red3Data,
+    oppRed3Data
+  );
+  const [blue1Data, oppBlue1Data] = await getTeamData(blue1, redTeams, year);
+  const [blue2Data, oppBlue2Data] = await getTeamData(blue2, redTeams, year);
+  const [blue3Data, oppBlue3Data] = await getTeamData(blue3, redTeams, year);
+  const blue1pred = await predictData(
+    dataPoint,
+    blue1,
+    redTeams,
+    blue1Data,
+    oppBlue1Data
+  );
+  const blue2pred = await predictData(
+    dataPoint,
+    blue2,
+    redTeams,
+    blue2Data,
+    oppBlue2Data
+  );
+  const blue3pred = await predictData(
+    dataPoint,
+    blue3,
+    redTeams,
+    blue3Data,
+    oppBlue3Data
+  );
+
+  const redScore = (red1pred + red2pred + red3pred) / 3;
+  const blueScore = (blue1pred + blue2pred + blue3pred) / 3;
+
+  console.log(
+    `Predicted match scores: Red Alliance: ${redScore.toFixed(
+      3
+    )}, Blue Alliance: ${blueScore.toFixed(3)}`
+  );
+  console.log(
+    `Predicted winner: ${redScore > blueScore ? "Red" : "Blue"} Alliance!`
+  );
 }
 
 main();
-
-//TESTING ACA!
-async function testACA() {
-  let matchStats = [];
-  const year = await askUserQuestion("Enter the year to predict for:");
-  const dataPoint = "match";
-  const matches = await getDataFromFile(`matches${year}.json`);
-  trainedNumbers = await getDataFromFile(`trainedNumbers${year}.json`);
-  const avgError = 0;
-  for (let i = 0; i < matches.length; i++) {
-    let matchPred = 0;
-    const redNumbers = matches[i].alliances.red.team_keys;
-    const blueNumbers = matches[i].alliances.blue.team_keys;
-    // must get team data, but getting it this way is gonna be slow... wayt... maybe not!
-
-    for (let j = 0; j < redNumbers.length; j++) {
-      if (!matchStats[redNumbers[j].substring(3)]) {
-        matchStats[redNumbers[j].substring(3)] = await getTeamData(
-          redNumbers[j],
-          [],
-          year
-        );
-      }
-      teamData = matchStats[redNumbers[j].substring(3)];
-      matchPred += await predictData(dataPoint, redNumbers[j], oppTeams);
-    }
-  }
-}

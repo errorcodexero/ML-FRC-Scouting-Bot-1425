@@ -326,7 +326,7 @@ async function initializeDataset(dataPoint) {
             }
             return sum;
           }, 0) / matchesInComp,
-          // Average of last 3 matches for the datapoint
+          // Best of last 3 matches for the datapoint
           teamMatchStatsBeforeThisMatch.slice(-3).reduce((last, val) => {
             if (!val.teamStats[dataPoint]) {
               return last;
@@ -334,23 +334,21 @@ async function initializeDataset(dataPoint) {
             return last > val.teamStats[dataPoint]
               ? last
               : val.teamStats[dataPoint];
-          }, 0) / 3,
+          }, 0),
           // Last match's stats for the datapoint
           teamMatchStatsBeforeThisMatch[
             teamMatchStatsBeforeThisMatch.length - 1
           ].teamStats[dataPoint],
           // The opposing teams oppositions average (to account for defense)
-          (oppMatchStatsBeforeThisMatch.reduce((sum, val) => {
-            return (
-              sum +
-              val.reduce((sum, val) => sum + val.oppStats[dataPoint], 0) /
-                val.length
-            );
-          }, 0) *
-            oppMatchStatsBeforeThisMatch.length) /
-            3,
+          oppMatchStatsBeforeThisMatch.reduce((sum, val) => {
+            return val
+              ? sum +
+                  val.reduce((sum, val) => sum + val.oppStats[dataPoint], 0) /
+                    val.length
+              : sum;
+          }, 0) / oppMatchStatsBeforeThisMatch.length,
           // The opposing teams oppositions average in the competition (to account for defense)
-          (oppMatchStatsBeforeThisMatch.reduce(
+          oppMatchStatsBeforeThisMatch.reduce(
             (sum, val) =>
               val
                 ? sum +
@@ -364,9 +362,7 @@ async function initializeDataset(dataPoint) {
                     val.length
                 : sum,
             0
-          ) *
-            oppMatchStatsBeforeThisMatch.length) /
-            3,
+          ) / oppMatchStatsBeforeThisMatch.length,
         ],
         actual: validMatches[j].teamStats[dataPoint],
       });
