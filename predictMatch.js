@@ -134,13 +134,19 @@ async function getTeamData(teamNumber, oppTeams, year) {
 
   for (let i = 0; i < teamData.length; i++) {
     let contd = false;
+    if (!teamData[i].score_breakdown) {
+      continue;
+    }
     for (let j = 0; j < subDataPoints.length; j++) {
-      if (!teamData[i].score_breakdown[subDataPoints[j]]) {
+      if (
+        isNaN(teamData[i].score_breakdown.red[subDataPoints[j]]) ||
+        isNaN(teamData[i].score_breakdown.blue[subDataPoints[j]])
+      ) {
         contd = true;
         break;
       }
     }
-    if (!teamData[i].score_breakdown || contd) {
+    if (contd) {
       continue;
     }
     if (teamData[i].alliances.red.team_keys.includes(teamKey)) {
@@ -169,13 +175,19 @@ async function getTeamData(teamNumber, oppTeams, year) {
 
     for (let j = 0; j < oppTeamData.length; j++) {
       let contd = false;
+      if (!oppTeamData[j].score_breakdown) {
+        continue;
+      }
       for (let k = 0; k < subDataPoints.length; k++) {
-        if (!oppTeamData[j].score_breakdown[subDataPoints[k]]) {
+        if (
+          isNaN(oppTeamData[j].score_breakdown.red[subDataPoints[k]]) ||
+          isNaN(oppTeamData[j].score_breakdown.blue[subDataPoints[k]])
+        ) {
           contd = true;
           break;
         }
       }
-      if (!oppTeamData[j].score_breakdown || contd) {
+      if (contd) {
         continue;
       }
       if (oppTeamData[j].alliances.red.team_keys.includes(oppTeams[i])) {
@@ -258,7 +270,7 @@ async function predictData(
   }
 
   if (teamMatchStats.length == 0) {
-    console.log("No matches found!");
+    console.log("No data found for team " + teamNumber);
     return `
                                                                                                     \n
                                                               ,@@@@@@@@@@@,                         \n
