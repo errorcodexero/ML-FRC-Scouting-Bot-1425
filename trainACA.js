@@ -9,7 +9,11 @@ const LEARNING_RATE0 = 0.000001;
 const LEARNING_RATE1 = 0.00000005;
 const LEARNING_RATE2 = 0.00000000001;
 const LEARNING_RATE3 = 0.000000000000005;
-const DONE_THRESH = 0.005;
+// at what point is the time cost of the iteration too much for the gain?
+// low I think is 0.003 - 6 mins, 37 secs, 23.184 avg error
+// decent I think is 0.01 - 3 mins, 23 secs, 24.356 avg error sacrifice ~3 mins training for 1 point accuracy?
+// high I think is 0.1 - 2 min, 51 secs, 23.577 avg error, probs bc more errors offset than 0.01.
+const DONE_THRESH = 0.0075;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
@@ -514,6 +518,7 @@ async function trainData(dataPoint, year) {
  * @returns {Promise<void>} A promise that resolves when all operations are complete.
  */
 async function main() {
+  const start = Date.now();
   console.log("Starting!");
   const year = await AI_FUNCS.getYearFromUser();
   await getMatchData(year);
@@ -521,7 +526,11 @@ async function main() {
     await initializeDataset(trainingPoints[i]);
     await trainData(trainingPoints[i], year);
   }
-  console.log("Done!");
+  console.log(
+    `Done in ${Math.round((Date.now() - start) / 60000)} minutes, ${
+      Math.round((Date.now() - start) / 1000) % 60
+    } seconds`
+  );
 }
 
 // for some reason the initialization of this all takes a while, idk why but whatever
@@ -531,3 +540,4 @@ main();
 // lolz that was only cuz i was getting liek 500 matches instead of 22000
 // its like about as fast
 // but my code is better so yeah
+// the iters give way better results than the previous stuff

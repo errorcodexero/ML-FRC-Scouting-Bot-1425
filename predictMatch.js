@@ -2,6 +2,15 @@ const fs = require("fs").promises;
 const readline = require("readline");
 const axios = require("axios");
 
+/**
+ * Deletes the last line of the console output.
+ * This function uses ANSI escape codes to move the cursor up one line and clear it.
+ */
+const deleteLastConsoleLine = function () {
+  process.stdout.write("\x1b[1A"); // Move cursor up one line
+  process.stdout.write("\x1b[2K"); // Clear the entire line
+};
+
 const TBA_API_KEY = process.env.TBA_API_KEY;
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
 const teamMatchStats = [];
@@ -20,6 +29,7 @@ const subDataPoints = [
 ];
 let fullTeamData;
 let trainedNumbers;
+let allMatchesInYear;
 
 const oppTeamOppMatchStats = [];
 for (let i = 0; i < 10000; i++) {
@@ -122,7 +132,11 @@ async function getTeamData(teamNumber, oppTeams, year) {
     teamKey = "frc" + teamNumber;
   }
 
-  fullTeamData = await getTBAData(`/team/${teamKey}/matches/${year}`);
+  let fullTeamData = await allMatchesInYear.filter(
+    (val) =>
+      val.alliances.blue.team_keys.includes(teamKey) ||
+      val.alliances.red.team_keys.includes(teamKey)
+  );
 
   fullTeamData = await fullTeamData.sort(
     (a, b) => a.actual_time < b.actual_time
@@ -208,6 +222,22 @@ async function getTeamData(teamNumber, oppTeams, year) {
   return [teamMatchStats, oppTeamOppMatchStats];
 }
 
+/**
+ * Predicts data for a specific data point in a robotics competition.
+ *
+ * This function analyzes historical match data and opponent data to predict
+ * the performance of a team for a given data point. It handles various game
+ * phases (auto, teleop, endgame) and uses a trained model for prediction.
+ *
+ * @async
+ * @param {string} dataPoint - The specific data point to predict (e.g., "auto_points", "teleop_points").
+ * @param {number} teamNumber - The team number for which the prediction is being made.
+ * @param {Array<string>} oppTeams - An array of opponent team numbers.
+ * @param {Array<Object>} teamMatchStats - Historical match statistics for the team.
+ * @param {Object} oppTeamOppMatchStats - Historical match statistics for opponent teams.
+ * @returns {Promise<number|string>} A promise that resolves to the predicted value for the data point,
+ *                                   or a string message if there's insufficient data.
+ */
 async function predictData(
   dataPoint,
   teamNumber,
@@ -269,8 +299,12 @@ async function predictData(
     return ret;
   }
 
-  if (teamMatchStats.length == 0) {
-    console.log("No data found for team " + teamNumber);
+  if (teamMatchStats.length == 0 || oppTeamOppMatchStats.length == 0) {
+    // console.log(
+    //   teamMatchStats.length == 0
+    //     ? "No data found for team " + teamNumber
+    //     : `No opp team data found for ${oppTeams}`
+    // );
     return `
                                                                                                     \n
                                                               ,@@@@@@@@@@@,                         \n
@@ -355,7 +389,7 @@ async function predictData(
       if (!oppTeamOppMatchStats[val] || val == 0) {
         oppTeamsThatHaveData--;
         if (oppTeamsThatHaveData === 0) {
-          oppTeamsThatHaveData = 2.9999;
+          oppTeamsThatHaveData = 9;
           return (
             teamMatchStats.reduce(
               (sum, val) => sum + val.teamStats[dataPoint],
@@ -377,31 +411,34 @@ async function predictData(
       oppTeamsThatHaveData) /
       3,
     (oppTeams.reduce((sum, val) => {
-      if (oppTeamsThatHaveData === 2.9999) {
+      oppTeamsThatHaveDataComp = oppTeamsThatHaveData;
+      if (oppTeamsThatHaveData === 9) {
         return (
           teamMatchStats.reduce((sum, val) => {
             if (val.comp === teamMatchStats[teamMatchStats.length - 1].comp) {
               return sum + val.teamStats[dataPoint];
             }
             return sum;
-          }, 0) /
-          (matchesInComp * 3)
+          }, 0) / matchesInComp
         );
       }
-      return oppTeamOppMatchStats[+val] && val != 0
-        ? sum +
-            oppTeamOppMatchStats[+val].reduce((sum, val) => {
+      const ret =
+        oppTeamOppMatchStats[+val] && val != 0
+          ? oppTeamOppMatchStats[+val].reduce((sum, val) => {
               if (val.comp === teamMatchStats[teamMatchStats.length - 1].comp) {
                 matchesInCompOpp++;
                 return sum + val.oppStats[dataPoint];
               }
               return sum;
-            }, 0) /
-              matchesInCompOpp +
-            0.000001
-        : sum;
+            }, 0)
+          : 0;
+      if (!oppTeamOppMatchStats[+val] || val == 0 || matchesInCompOpp == 0) {
+        oppTeamsThatHaveDataComp--;
+        return sum;
+      }
+      return sum + ret / matchesInCompOpp;
     }, 0) *
-      oppTeamsThatHaveData) /
+      oppTeamsThatHaveDataComp) /
       3,
   ];
 
@@ -419,18 +456,158 @@ async function predictData(
   return prediction(dataPoint);
 }
 
+async function testMatchPredictions() {
+  const dataPoint = "match";
+  let matchData = [];
+  let avgError = [];
+  for (let y = 0; y < 10000; y++) {
+    matchData.push([]);
+  }
+  // all matches in year
+  for (let i = 0; i < allMatchesInYear.length; i++) {
+    // if score breakdown is a nan or nonexistent
+    if (!allMatchesInYear[i].score_breakdown) {
+      continue;
+    }
+    let contd = false;
+    for (let j = 0; j < subDataPoints.length; j++) {
+      if (
+        isNaN(allMatchesInYear[i].score_breakdown.red[subDataPoints[j]]) ||
+        isNaN(allMatchesInYear[i].score_breakdown.blue[subDataPoints[j]])
+      ) {
+        contd = true;
+        break;
+      }
+    }
+    for (let j = 0; j < 3; j++) {
+      if (
+        !allMatchesInYear[i].alliances.red.team_keys[j] ||
+        !allMatchesInYear[i].alliances.blue.team_keys[j] ||
+        !matchData[
+          parseInt(allMatchesInYear[i].alliances.red.team_keys[j].substring(3))
+        ] ||
+        !matchData[
+          parseInt(allMatchesInYear[i].alliances.blue.team_keys[j].substring(3))
+        ]
+      ) {
+        contd = true;
+        break;
+      }
+    }
+    if (contd) {
+      continue;
+    }
+    let redAvgArr = [];
+    let blueAvgArr = [];
+    for (
+      let j = 0;
+      j < allMatchesInYear[i].alliances.red.team_keys.length;
+      j++
+    ) {
+      // all teams should have data, get team
+      let team = allMatchesInYear[i].alliances.red.team_keys[j];
+      team = parseInt(team.substring(3));
+      // get prediction
+      const pred = await predictData(
+        dataPoint,
+        team,
+        allMatchesInYear[i].alliances.blue.team_keys,
+        matchData[team],
+        allMatchesInYear[i].alliances.blue.team_keys
+          .map((val) => matchData[parseInt(val.substring(3))])
+          .flat(Infinity)
+      );
+      // this shouldnt happen
+      if (typeof pred == "string") {
+        continue;
+      }
+      // add it to array, should have 3 or less els
+      redAvgArr.push(pred);
+
+      // add the match data after
+      matchData[team].push({
+        teamStats: allMatchesInYear[i].score_breakdown.red,
+        oppTeams: allMatchesInYear[i].alliances.blue.team_keys,
+        oppStats: allMatchesInYear[i].score_breakdown.blue,
+        comp: allMatchesInYear[i].key,
+        time: allMatchesInYear[i].actual_time,
+      });
+    }
+    // add it to the avg error
+    if (redAvgArr.length > 0) {
+      redAvg = redAvgArr.reduce((sum, val) => sum + val, 0) / redAvgArr.length;
+      avgError.push(Math.abs(redAvg - allMatchesInYear[i].alliances.red.score));
+    }
+
+    for (
+      let j = 0;
+      j < allMatchesInYear[i].alliances.blue.team_keys.length;
+      j++
+    ) {
+      // repeat for blue, getting team
+      let team = allMatchesInYear[i].alliances.blue.team_keys[j];
+      team = parseInt(team.substring(3));
+
+      // getting pred
+      const pred = await predictData(
+        dataPoint,
+        team,
+        allMatchesInYear[i].alliances.red.team_keys,
+        matchData[team],
+        allMatchesInYear[i].alliances.red.team_keys
+          .map((val) => matchData[parseInt(val.substring(3))])
+          .flat(Infinity)
+      );
+      if (!typeof pred == "string") {
+        blueAvgArr.push(pred);
+      }
+
+      matchData[team].push({
+        teamStats: allMatchesInYear[i].score_breakdown.blue,
+        oppTeams: allMatchesInYear[i].alliances.red.team_keys,
+        oppStats: allMatchesInYear[i].score_breakdown.red,
+        comp: allMatchesInYear[i].key,
+        time: allMatchesInYear[i].actual_time,
+      });
+    }
+
+    if (blueAvgArr.length > 0) {
+      blueAvg =
+        blueAvgArr.reduce((sum, val) => sum + val, 0) / blueAvgArr.length;
+      avgError.push(
+        Math.abs(blueAvg - allMatchesInYear[i].alliances.blue.score)
+      );
+    }
+    if (avgError.length != 0) {
+      const error =
+        avgError.reduce((val, sum) => val + sum, 0) / avgError.length;
+      deleteLastConsoleLine();
+      console.log(`Average error of model: ${error.toFixed(3)}`);
+    }
+  }
+}
+
 async function main() {
+  const year = await askUserQuestion("Enter the year to predict for:");
+  allMatchesInYear = await getDataFromFile(`matches${year}.json`);
+  allMathcesInYear = await allMatchesInYear.sort(
+    (a, b) => a.actual_time - b.actual_time
+  );
+  trainedNumbers = await getDataFromFile(`trainedNumbers${year}.json`);
+
   const red1 = await askUserQuestion("Enter red 1:");
+  if (red1 == "test") {
+    testMatchPredictions();
+    return;
+  }
+
   const red2 = await askUserQuestion("Enter red 2:");
   const red3 = await askUserQuestion("Enter red 3:");
   const blue1 = await askUserQuestion("Enter blue 1:");
   const blue2 = await askUserQuestion("Enter blue 2:");
   const blue3 = await askUserQuestion("Enter blue 3:");
 
-  const year = await askUserQuestion("Enter the year to predict for:");
   const dataPoint = "match";
-
-  trainedNumbers = await getDataFromFile(`trainedNumbers${year}.json`);
 
   const redTeams = [red1, red2, red3];
   const blueTeams = [blue1, blue2, blue3];
