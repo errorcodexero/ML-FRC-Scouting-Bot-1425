@@ -10,7 +10,9 @@ const deleteLastConsoleLine = function () {
   process.stdout.write("\x1b[1A"); // Move cursor up one line
   process.stdout.write("\x1b[2K"); // Clear the entire line
 };
-
+// prediction mode being totalPoints means that the match will go for the totalPoints training data, // edit later: was weirdge
+// if it is anything else (should be "match" though), then it will iterate through the weights through all the data.
+const predictionMode = "match";
 const TBA_API_KEY = process.env.TBA_API_KEY;
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
 const teamMatchStats = [];
@@ -26,6 +28,7 @@ const subDataPoints = [
   "endGameOnStagePoints",
   "endGameParkPoints",
   "endGameSpotLightBonusPoints",
+  "totalPoints",
 ];
 let fullTeamData;
 let trainedNumbers;
@@ -457,7 +460,7 @@ async function predictData(
 }
 
 async function testMatchPredictions() {
-  const dataPoint = "match";
+  const dataPoint = predictionMode;
   let matchData = [];
   let avgError = [];
   for (let y = 0; y < 10000; y++) {
@@ -607,7 +610,7 @@ async function main() {
   const blue2 = await askUserQuestion("Enter blue 2:");
   const blue3 = await askUserQuestion("Enter blue 3:");
 
-  const dataPoint = "match";
+  const dataPoint = predictionMode;
 
   const redTeams = [red1, red2, red3];
   const blueTeams = [blue1, blue2, blue3];

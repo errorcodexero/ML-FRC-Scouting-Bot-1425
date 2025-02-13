@@ -10,6 +10,7 @@ const LEARNING_RATE1 = 0.00000005;
 const LEARNING_RATE2 = 0.00000000001;
 const LEARNING_RATE3 = 0.000000000000005;
 // at what point is the time cost of the iteration too much for the gain?
+// you can just train the entire match data and it is more accurate. // edit: was weirdge
 // low I think is 0.003 - 6 mins, 37 secs, 23.184 avg error
 // 0.0075 - 4 mins, 42 secs, 24.247 avg error
 // decent I think is 0.01 - 3 mins, 23 secs, 24.356 avg error sacrifice ~3 mins training for 1 point accuracy?
@@ -35,6 +36,7 @@ const trainingPoints = [
   "endGameOnStagePoints",
   "endGameParkPoints",
   "endGameSpotLightBonusPoints",
+  "totalPoints",
 ];
 
 //WARNING:

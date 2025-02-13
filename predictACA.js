@@ -17,6 +17,7 @@ const subDataPoints = [
   "endGameOnStagePoints",
   "endGameParkPoints",
   "endGameSpotLightBonusPoints",
+  "totalPoints",
 ];
 let fullTeamData;
 let trainedNumbers;
@@ -235,7 +236,7 @@ async function predictData(dataPoint, teamNumber, oppTeams) {
       }
     } else {
       for (let i = 0; i < subDataPoints.length; i++) {
-        if (typeof ret == "number") {
+        if (typeof ret == "number" && subDataPoints[i] != "totalPoints") {
           ret += await predictData(subDataPoints[i], teamNumber, oppTeams);
         }
       }
