@@ -28,7 +28,6 @@ const subDataPoints = [
   "endGameOnStagePoints",
   "endGameParkPoints",
   "endGameSpotLightBonusPoints",
-  "totalPoints",
 ];
 let fullTeamData;
 let trainedNumbers;
@@ -588,6 +587,16 @@ async function testMatchPredictions() {
       console.log(`Average error of model: ${error.toFixed(3)}`);
     }
   }
+  const squaredAvgError = avgError.map((val) => {
+    return val ** 2;
+  });
+
+  const variance =
+    squaredAvgError.reduce((sum, val) => sum + val, 0) / avgError.length;
+
+  const standardDev = Math.sqrt(variance);
+
+  console.log(`Standard deviation of model: ${standardDev.toFixed(3)}`);
 }
 
 async function main() {
@@ -600,7 +609,7 @@ async function main() {
 
   const red1 = await askUserQuestion("Enter red 1:");
   if (red1 == "test") {
-    testMatchPredictions();
+    await testMatchPredictions();
     return;
   }
 
