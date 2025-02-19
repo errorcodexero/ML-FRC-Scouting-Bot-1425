@@ -16,7 +16,7 @@ const LEARNING_RATE3 = 0.000000000000005;
 // 0.0075 - 4 mins, 42 secs, 24.247 avg error
 // 0.01 - 3 mins, 23 secs, 24.356 avg error sacrifice ~3 mins training for 1.15 points of accuracy?
 // high I think is 0.1 - 2 min, 51 secs, 23.577 avg error, probs bc more errors offset than 0.01.
-const DONE_THRESH = 0.001;
+const DONE_THRESH = 0.005;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
@@ -477,6 +477,9 @@ async function trainData(dataPoint, year) {
 
   // trains it until its done and it has done more than 3 iterations
   while (true) {
+    if (dataPoint == "autoLeavePoints") {
+      canBeDone = canBeDone;
+    }
     if (iters >= 3 && lastError - error < DONE_THRESH) {
       if (canBeDone) {
         break;

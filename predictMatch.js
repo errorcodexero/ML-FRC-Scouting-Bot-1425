@@ -462,6 +462,7 @@ async function testMatchPredictions() {
   const dataPoint = predictionMode;
   let matchData = [];
   let avgError = [];
+  let correctPreds = 0;
   for (let y = 0; y < 10000; y++) {
     matchData.push([]);
   }
@@ -500,7 +501,9 @@ async function testMatchPredictions() {
       continue;
     }
     let redAvgArr = [];
+    let redAvg = 0;
     let blueAvgArr = [];
+    let blueAvg = 0;
     for (
       let j = 0;
       j < allMatchesInYear[i].alliances.red.team_keys.length;
@@ -519,12 +522,9 @@ async function testMatchPredictions() {
           .map((val) => matchData[parseInt(val.substring(3))])
           .flat(Infinity)
       );
-      // this shouldnt happen
-      if (typeof pred == "string") {
-        continue;
+      if (!(typeof pred == "string")) {
+        redAvgArr.push(pred);
       }
-      // add it to array, should have 3 or less els
-      redAvgArr.push(pred);
 
       // add the match data after
       matchData[team].push({
@@ -560,7 +560,7 @@ async function testMatchPredictions() {
           .map((val) => matchData[parseInt(val.substring(3))])
           .flat(Infinity)
       );
-      if (!typeof pred == "string") {
+      if (!(typeof pred == "string")) {
         blueAvgArr.push(pred);
       }
 
@@ -580,6 +580,18 @@ async function testMatchPredictions() {
         Math.abs(blueAvg - allMatchesInYear[i].alliances.blue.score)
       );
     }
+    if (
+      (blueAvgArr.length > 0 &&
+        redAvgArr.length > 0 &&
+        blueAvg > redAvg &&
+        allMatchesInYear[i].alliances.blue.score >
+          allMatchesInYear[i].alliances.red.score) ||
+      (blueAvg < redAvg &&
+        allMatchesInYear[i].alliances.blue.score <
+          allMatchesInYear[i].alliances.red.score)
+    ) {
+      correctPreds++;
+    }
     if (avgError.length != 0) {
       const error =
         avgError.reduce((val, sum) => val + sum, 0) / avgError.length;
@@ -597,6 +609,9 @@ async function testMatchPredictions() {
   const standardDev = Math.sqrt(variance);
 
   console.log(`Standard deviation of model: ${standardDev.toFixed(3)}`);
+  console.log(
+    `Percentage correct predictions: ${correctPreds / (avgError.length / 2)}`
+  );
 }
 
 async function main() {
