@@ -6,25 +6,19 @@ const TBA_API_KEY = process.env.TBA_API_KEY;
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
 const teamMatchStats = [];
 const subDataPoints = [
-  "autoAmpNotePoints",
-  "autoSpeakerNotePoints",
-  "autoLeavePoints",
-  "teleopAmpNotePoints",
-  "teleopSpeakerNotePoints",
+  "autoCoralPoints",
+  "algaePoints",
+  "endGameBargePoints",
   "foulPoints",
-  "endGameHarmonyPoints",
-  "endGameNoteInTrapPoints",
-  "endGameOnStagePoints",
-  "endGameParkPoints",
-  "endGameSpotLightBonusPoints",
-  "totalPoints",
+  "teleopCoralPoints",
+  //"totalPoints",
 ];
 let fullTeamData;
 let trainedNumbers;
 let allMatchesInYear;
 
 const oppTeamOppMatchStats = [];
-for (let i = 0; i < 10000; i++) {
+for (let i = 0; i < 20000; i++) {
   oppTeamOppMatchStats.push([]);
 }
 

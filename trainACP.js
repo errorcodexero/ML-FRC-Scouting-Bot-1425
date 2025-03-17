@@ -5,10 +5,10 @@ const fs = require("fs");
 const TBA_API_KEY = process.env.TBA_API_KEY; // Replace with your actual TBA API key
 const BASE_URL = "https://www.thebluealliance.com/api/v3";
 
-const LEARNING_RATE0 = 0.000001;
+const LEARNING_RATE0 = 0.000005;
 const LEARNING_RATE1 = 0.00000005;
-const LEARNING_RATE2 = 0.00000000001;
-const LEARNING_RATE3 = 0.000000000000005;
+const LEARNING_RATE2 = 0.00000000005;
+const LEARNING_RATE3 = 0.00000000000005;
 // at what point is the time cost of the iteration too much for the gain?
 // you can just train the entire match data and it is (edit: not) more accurate. // edit: was weirdge
 // low I think is 0.003 - 6 mins, 37 secs, 23.184 avg error
@@ -17,25 +17,20 @@ const LEARNING_RATE3 = 0.000000000000005;
 // 0.01 - 3 mins, 23 secs, 24.356 avg error sacrifice ~3 mins training for 1.15 points of accuracy?
 // high I think is 0.1 - 2 min, 51 secs, 23.577 avg error, probs bc more errors offset than 0.01.
 const DONE_THRESH = 0.005;
+const DONE_THRESH_CORAL = 0.005;
 const matchStats = [];
 const matchData = {};
 let trainedNumbers = {};
 
 // THIS CHANGES PER YEAR
 // replace with data for current year
-// this is for 2024
+// this is for 2025 now
 const trainingPoints = [
-  "autoAmpNotePoints",
-  "autoSpeakerNotePoints",
-  "autoLeavePoints",
-  "teleopAmpNotePoints",
-  "teleopSpeakerNotePoints",
+  "autoCoralPoints",
+  "algaePoints",
+  "endGameBargePoints",
   "foulPoints",
-  "endGameHarmonyPoints",
-  "endGameNoteInTrapPoints",
-  "endGameOnStagePoints",
-  "endGameParkPoints",
-  "endGameSpotLightBonusPoints",
+  "teleopCoralPoints",
   //"totalPoints",
 ];
 
@@ -183,10 +178,18 @@ const AI_FUNCS = {
  * @throws {Error} If there's an error fetching or processing the data.
  */
 async function getMatchData(year) {
-  events = await AI_FUNCS.getTBAData(`/events/${year}/keys`);
+  let eventsNotKeys = await AI_FUNCS.getTBAData(`/events/${year}`);
   eventsGotten = await AI_FUNCS.readFromFile(`events${year}.json`);
-  await AI_FUNCS.writeToFile(`events${year}.json`, events);
-
+  let completedEvents = await eventsNotKeys.filter(function (event) {
+    return Date.parse(event.end_date) + 8.64e7 <= Date.now();
+  });
+  let completedEventKeys = completedEvents.map(function (event) {
+    return event.key;
+  });
+  await AI_FUNCS.writeToFile(`events${year}.json`, completedEventKeys);
+  let events = eventsNotKeys.map(function (event) {
+    return event.key;
+  });
   let matches = await AI_FUNCS.readFromFile(`matches${year}.json`);
   //filler for delete
   console.log("");
@@ -194,7 +197,16 @@ async function getMatchData(year) {
   for (let i = 0; i < events.length; i++) {
     if (!eventsGotten.includes(events[i])) {
       updated = true;
-      let data = await AI_FUNCS.getTBAData(`/event/${events[i]}/matches`);
+      let data = await AI_FUNCS.getTBAData(`/event/${events[i]}/matches`).then(
+        function (data) {
+          //console.log(data);
+          if (data) {
+            return data;
+          }
+          return [];
+        }
+      );
+      //console.log(data);
       matches.push(...data);
       //console.log(`this lowkey shouldnt happen rn`);
     }
@@ -374,6 +386,10 @@ async function initializeDataset(dataPoint) {
         actual: validMatches[j].teamStats[dataPoint],
       });
 
+      if (validMatches[j].teamStats[dataPoint] < 0) {
+        console.log(validMatches[j].teamStats[dataPoint]);
+      }
+
       // Checking for problematic stuff - this caught most of the NaN's seen, bc idk what was causing them
       for (
         let k = 0;
@@ -387,7 +403,10 @@ async function initializeDataset(dataPoint) {
           break;
         }
       }
-      if (isNaN(matchData[dataPoint][matchData[dataPoint].length - 1].actual)) {
+      if (
+        matchData[dataPoint].length &&
+        isNaN(matchData[dataPoint][matchData[dataPoint].length - 1].actual)
+      ) {
         matchData[dataPoint].pop();
       }
     }
@@ -442,7 +461,7 @@ async function trainData(dataPoint, year) {
       if (isNaN(matchData[dataPoint][i].actual)) {
         continue;
       }
-      sum += Math.abs(prediction(i) - matchData[dataPoint][i].actual) ** 2;
+      sum += (prediction(i) - matchData[dataPoint][i].actual) ** 2;
     }
     return sum / matchData[dataPoint].length;
   }
@@ -457,6 +476,15 @@ async function trainData(dataPoint, year) {
       return chain1 * chain2;
     }
     for (let i = 0; i < matchData[dataPoint].length; i++) {
+      if (prediction(i) < 0) {
+        trainedNumbers[dataPoint] = {
+          a: [0, 0, 0, 0, 0, 0],
+          b: [0, 0, 0, 0, 0, 0],
+          c: [0, 0, 0, 0, 0, 0],
+          d: 0,
+        };
+        console.log("womp womp");
+      }
       for (let j = 0; j < matchData[dataPoint][i].inputs.length; j++) {
         trainedNumbers[dataPoint].a[j] -=
           LEARNING_RATE3 * errDerivitave(i, 3, j);
